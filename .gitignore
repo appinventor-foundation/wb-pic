@@ -1,0 +1,9 @@
+*~*
+
+build/
+node_modules/
+script_data/
+newpic/server/output/
+*.swp
+
+.DS_Store
