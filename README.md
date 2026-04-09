@@ -21,6 +21,35 @@ PIC has two training modes, directly on the browser or delegated to a server.
 
 The server will load a different package depending on if it can detect a GPU or not. If it is detected, the GPU will be used for training and if not, it will default to CPU.
 
+## How Training Works
+
+The system trains an **image classifier** using **transfer learning**: it borrows a pre-built neural network (MobileNet, developed by Google) as a frozen feature extractor, and trains a small custom layer on top. MobileNet acts as a highly-trained eye that describes what it sees; the custom layer learns what to *call* those descriptions based on your specific categories.
+
+### Training Pipeline
+
+1. **You provide examples** — images grouped by label (your chosen categories).
+2. **Images are pre-processed** — centre-cropped, resized to 224×224 pixels, pixel values normalised to [-1, 1].
+3. **MobileNet extracts features** — every image is passed through the frozen MobileNet network, producing a compact numerical fingerprint. MobileNet's weights never change.
+4. **A small custom model trains on those fingerprints** — 4 layers: Conv2D → Flatten → Dense (100 neurons) → Output (one neuron per class, Softmax).
+5. **Loss and optimisation** — predictions are compared to correct labels via categorical cross-entropy loss; the Adam optimiser adjusts weights to reduce error. Repeats for ~20 epochs.
+6. **Result** — a trained model file ready to classify new images.
+
+### Browser vs Server: Same Training, Different Environment
+
+The training logic is **identical** in both modes — same architecture, same loss function, same optimiser, same image normalisation, same TensorFlow.js training loop. The difference is purely where the computation runs:
+
+| | Browser | Server |
+|---|---|---|
+| Hardware | CPU / WebGL | GPU (with CPU fallback) |
+| Speed | Slower | Much faster |
+| Flow | Synchronous, in memory | Job submitted → polled → model returned |
+
+In server mode the browser submits images and config, the server trains in the background, and when done the model weights are sent back and loaded into the browser — ready to use exactly as if trained locally.
+
+![Training pipeline diagram](docs/diagram.png)
+
+**Key defaults:** MobileNet v1 or v2 · 224×224 input · Adam lr=0.0001 · 20 epochs · batch size ~40% of dataset · optional 80/20 stratified validation split.
+
 ## Development
 Both the React app and the server have their own set of dependencies and npm files.
 

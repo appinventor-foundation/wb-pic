@@ -1,0 +1,43 @@
+flowchart TD
+    A([User provides labelled images]) --> B
+
+    subgraph PRE[Pre-processing]
+        B[Centre-crop to square] --> C[Resize to 224×224]
+        C --> D[Normalise pixels to -1 to 1]
+    end
+
+    D --> E
+
+    subgraph TRANSFER[Feature Extraction — frozen MobileNet]
+        E[Pass image through MobileNet] --> F[7×7×256/1280 fingerprint per image]
+    end
+
+    F --> G
+
+    subgraph TRAIN[Custom Model Training]
+        G[Conv2D — 5 filters, 5×5] --> H[Flatten]
+        H --> I[Dense — 100 neurons, ReLU]
+        I --> J[Output — 1 neuron per class, Softmax]
+        J --> K{Prediction correct?}
+        K -- No --> L[Cross-entropy loss\nAdam optimiser\nUpdate weights]
+        L --> G
+        K -- Yes / epoch done --> M{More epochs?}
+        M -- Yes --> G
+        M -- No, done --> N
+    end
+
+    N([Trained model]) --> O{Where was it trained?}
+
+    O -- Browser --> P[Model lives in memory\nready to use]
+    O -- Server --> Q[Weights encoded as binary\nSent back to browser\nLoaded into memory]
+    Q --> P
+
+    subgraph ENV[Execution Environment]
+        R[Browser\nCPU / WebGL\nSlower]
+        S[Server\nGPU preferred, CPU fallback\nFaster]
+    end
+
+    style TRANSFER fill:#e8f4e8,stroke:#4a9e4a
+    style TRAIN fill:#e8eef8,stroke:#4a6ea8
+    style PRE fill:#fef9e8,stroke:#b8a020
+    style ENV fill:#f8f0f8,stroke:#8a4a8a
