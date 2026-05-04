@@ -18,13 +18,10 @@ flowchart TD
         G[Conv2D — 5 filters, 5×5] --> H[Flatten]
         H --> I[Dense — 100 neurons, ReLU]
         I --> J[Output — 1 neuron per class, Softmax]
-        J --> K{Prediction correct?}
-        K -- No --> L[Cross-entropy loss\nAdam optimiser\nUpdate weights]
-        L --> G
-        K -- Yes / epoch done --> M{More epochs?}
-        M -- Yes --> G
-        M -- No, done --> N
+        J --> L[Cross-entropy loss\nBackprop — Adam optimiser\nUpdate weights]
+        L -->|next batch / epoch| G
     end
+    L -->|training complete| N
 
     N([Trained model]) --> O{Where was it trained?}
 
