@@ -34,6 +34,17 @@ export const TRANSFER_MODEL_OPTIONS = {
     truncationLayer: 'module_apply_default/MobilenetV2/Conv_1/Relu6',
     outputShape: [7, 7, 1280],
     modelFormat: 'graph'
+  },
+  // Kaggle google/mobilenet-v3 small-100-224-feature-vector. Not supported by the
+  // App Inventor extension yet, so no extensionName (model export is disabled).
+  mobilenet_v3_small_local: {
+    name: 'mobilenet_v3_small_local',
+    label: 'MobileNet v3 Small (local folder)',
+    url: 'http://localhost:5000/mobilenet_v3/model.json',
+    truncationLayer: 'StatefulPartitionedCall/StatefulPartitionedCall/predict/MobilenetV3/Conv_1/hard_swish/mul_1',
+    outputShape: [7, 7, 576],
+    modelFormat: 'graph',
+    normalization: 'unit'
   }
 };
 
