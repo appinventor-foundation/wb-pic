@@ -37,6 +37,16 @@ export const TRANSFER_MODEL_OPTIONS = {
   },
   // Kaggle google/mobilenet-v3 small-100-224-feature-vector. Not supported by the
   // App Inventor extension yet, so no extensionName (model export is disabled).
+  mobilenet_v3_small: {
+    name: 'mobilenet_v3_small',
+    label: 'MobileNet v3 Small (remote)',
+    url: 'https://www.kaggle.com/models/google/mobilenet-v3/TfJs/small-100-224-feature-vector/1',
+    fromTFHub: true,  // tfjs appends /model.json?tfjs-format=file for Kaggle/TF Hub URLs
+    truncationLayer: 'StatefulPartitionedCall/StatefulPartitionedCall/predict/MobilenetV3/Conv_1/hard_swish/mul_1',
+    outputShape: [7, 7, 576],
+    modelFormat: 'graph',
+    normalization: 'unit'
+  },
   mobilenet_v3_small_local: {
     name: 'mobilenet_v3_small_local',
     label: 'MobileNet v3 Small (local folder)',
