@@ -227,7 +227,7 @@ async function runTraining(jobId, imageMap, config) {
 
   try {
     // 1. Load transfer model (cached by URL to avoid re-downloading)
-    const { name, truncationLayer, modelFormat = 'layers' } = config.transferModel || {};
+    const { name, truncationLayer, modelFormat = 'layers', normalization } = config.transferModel || {};
     let { url } = config.transferModel || {};
     if (!url || !truncationLayer) {
       throw new Error('config.transferModel must include url and truncationLayer');
@@ -271,7 +271,7 @@ async function runTraining(jobId, imageMap, config) {
     for (const label of labels) {
       const oneHot = labels.map(l => (l === label ? 1 : 0));
       for (const input of imageMap[label]) {
-        const imgTensor = await loadImageTensor(tf, input);
+        const imgTensor = await loadImageTensor(tf, input, normalization);
         const batched = tf.expandDims(imgTensor, 0);
         const activation = modelFormat === 'graph'
           ? transferModel.execute(batched, truncationLayer)
@@ -360,7 +360,7 @@ async function runTraining(jobId, imageMap, config) {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-async function loadImageTensor(tf, input) {
+async function loadImageTensor(tf, input, normalization) {
   let buffer;
 
   if (typeof input === 'string' && input.startsWith('data:')) {
@@ -383,8 +383,11 @@ async function loadImageTensor(tf, input) {
   const pixelData = new Uint8Array(data);
   const raw = tf.tensor3d(pixelData, [info.height, info.width, 3], 'int32');
 
-  // Normalize: (x / 127) - 1 → [-1, 1]
-  const normalized = raw.toFloat().div(tf.scalar(127)).sub(tf.scalar(1));
+  // Normalize to the range the transfer model expects
+  // 'mobilenet': (x / 127) - 1 → [-1, 1]; 'unit': x / 255 → [0, 1]
+  const normalized = normalization === 'unit'
+    ? raw.toFloat().div(tf.scalar(255))
+    : raw.toFloat().div(tf.scalar(127)).sub(tf.scalar(1));
   raw.dispose();
   return normalized;
 }

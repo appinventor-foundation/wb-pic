@@ -66,8 +66,8 @@ export const DEFAULT_CONFIG = {
 
   // Image Processing
   imageProcessing: {
-    targetSize: [224, 224],
-    normalization: 'mobilenet'  // (x/127) - 1
+    targetSize: [224, 224]
+    // normalization is per transfer model, see transferModel.normalization
   },
 
   // Memory Management
