@@ -9,13 +9,13 @@ export class ModelBuilder {
   async getTransferModel() {
     // Extract from TestView.js lines 52-65
     try {
-      const { url, truncationLayer, modelFormat = 'layers' } = this.config.transferModel;
+      const { url, truncationLayer, modelFormat = 'layers', fromTFHub = false } = this.config.transferModel;
       console.log('Loading mobilenet..');
 
       if (modelFormat === 'graph') {
         // GraphModel format (e.g., MobileNet v2)
         // Cannot truncate upfront - must use execute() during prediction
-        const model = await tf.loadGraphModel(url);
+        const model = await tf.loadGraphModel(url, { fromTFHub });
         console.log('Loaded MobileNet as GraphModel');
         console.log(`Will extract features from layer: ${truncationLayer}`);
         return model;

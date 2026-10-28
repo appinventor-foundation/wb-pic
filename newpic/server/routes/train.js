@@ -227,7 +227,7 @@ async function runTraining(jobId, imageMap, config) {
 
   try {
     // 1. Load transfer model (cached by URL to avoid re-downloading)
-    const { name, truncationLayer, modelFormat = 'layers', normalization } = config.transferModel || {};
+    const { name, truncationLayer, modelFormat = 'layers', normalization, fromTFHub = false } = config.transferModel || {};
     let { url } = config.transferModel || {};
     if (!url || !truncationLayer) {
       throw new Error('config.transferModel must include url and truncationLayer');
@@ -243,7 +243,7 @@ async function runTraining(jobId, imageMap, config) {
     notify(5, `Loading transfer model (${name || modelFormat})...`);
     if (!transferModelCache[url]) {
       if (modelFormat === 'graph') {
-        transferModelCache[url] = await tf.loadGraphModel(url);
+        transferModelCache[url] = await tf.loadGraphModel(url, { fromTFHub });
       } else {
         const fullModel = await tf.loadLayersModel(url);
         const layer = fullModel.getLayer(truncationLayer);
