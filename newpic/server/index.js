@@ -32,6 +32,7 @@ const app = express();
 app.use(cors());
 app.enable('trust proxy');
 app.use(express.json({ limit: '2gb' }));
+app.use('/mobilenet_v3', express.static(path.resolve(__dirname, '../../mobilenetv3')));
 app.use('/mobilenet_v2', express.static(path.resolve(__dirname, '../../mobilenetv2')));
 app.use('/mobilenet', express.static(path.resolve(__dirname, '../../mobilenet')));
 app.use('/api', trainRouter);
