@@ -21,7 +21,7 @@ export const TRANSFER_MODEL_OPTIONS = {
     name: 'mobilenet_local',
     label: 'MobileNet (local folder)',
     extensionName: 'mobilenet',         // same architecture as the bundled extension model
-    url: 'http://localhost:5000/mobilenet/model.json',
+    url: 'http://localhost:3100/mobilenet/model.json',
     truncationLayer: 'conv_pw_13_relu',
     outputShape: [7, 7, 256],
     modelFormat: 'layers'
@@ -30,7 +30,7 @@ export const TRANSFER_MODEL_OPTIONS = {
     name: 'mobilenet_v2_local',
     label: 'MobileNet v2 (local folder)',
     extensionName: 'mobilenet_v2',      // name the App Inventor extension expects
-    url: 'http://localhost:5000/mobilenet_v2/model.json',
+    url: 'http://localhost:3100/mobilenet_v2/model.json',
     truncationLayer: 'module_apply_default/MobilenetV2/Conv_1/Relu6',
     outputShape: [7, 7, 1280],
     modelFormat: 'graph'
@@ -52,7 +52,7 @@ export const TRANSFER_MODEL_OPTIONS = {
     name: 'mobilenet_v3_small_local',
     label: 'MobileNet v3 Small (local folder)',
     extensionName: 'mobilenet_v3_small',  // same architecture as the remote model
-    url: 'http://localhost:5000/mobilenet_v3/model.json',
+    url: 'http://localhost:3100/mobilenet_v3/model.json',
     truncationLayer: 'StatefulPartitionedCall/StatefulPartitionedCall/predict/MobilenetV3/Conv_1/hard_swish/mul_1',
     outputShape: [7, 7, 576],
     modelFormat: 'graph',

@@ -7,7 +7,7 @@ implementations) and the ML related code has been separated in the ml folder.
 
 # React app and node app
 The repo now contains both a React app (same as before but with a new interface) and also a node app.
-By default the React app runs on port 3000 and the node app runs on port 5000.
+By default the React app runs on port 3000 and the node app runs on port 3100.
 
 The react app is fully functional without the node side, but the training must be done in the browser. The node app was added so training can be done in the hosting machine.
 

@@ -17,7 +17,7 @@ export const ImageMapProvider = ({ children }) => {
   const [testImage, setTestImage] = useState(null);
   const [predictions, setPredictions] = useState(null);
   const [activeWebcamClass, setActiveWebcamClass] = useState(null);
-  const [serverUrl, setServerUrl] = useState('http://localhost:5000');
+  const [serverUrl, setServerUrl] = useState('http://localhost:3100');
 
   const addLabel = useCallback((labelName) => {
     setImageMap(prev => ({
