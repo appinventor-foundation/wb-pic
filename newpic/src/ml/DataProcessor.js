@@ -1,5 +1,6 @@
 import * as tf from '@tensorflow/tfjs';
 import { ImageProcessingError, ValidationError } from './utils/errors';
+import { TensorUtils } from './utils/TensorUtils';
 
 // Input range expected by the transfer model, selected by transferModel.normalization
 const NORMALIZERS = {
@@ -56,7 +57,8 @@ export class DataProcessor {
     }
   }
 
-  async generateInputTensors(imageMap) {
+  // onProgress(done, total) is called after each image is converted
+  async generateInputTensors(imageMap, onProgress) {
     // Extract from TestView.js lines 176-203
     const imageTensors = [];
     const labelTensors = [];
@@ -67,10 +69,18 @@ export class DataProcessor {
       imageMapConverted[label] = [];
     }
 
+    const total = Object.values(imageMap).reduce((sum, images) => sum + images.length, 0);
+    let done = 0;
+
     for (let label in imageMap) {
       for (let imgIndex in imageMap[label]) {
         const convertedImg = await this.convertImage(imageMap[label][imgIndex]);
         imageMapConverted[label].push(convertedImg);
+        done++;
+        if (onProgress) {
+          onProgress(done, total);
+          await TensorUtils.yieldToUI();
+        }
       }
     }
 

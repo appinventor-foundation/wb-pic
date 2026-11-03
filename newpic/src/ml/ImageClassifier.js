@@ -56,33 +56,50 @@ export class ImageClassifier {
         transferModel: this.config.transferModel
       };
 
+      // Progress (0-100) follows the work done:
+      //   model download 2-15, image preprocessing 15-35, feature extraction 35-65,
+      //   head + validation split 65-70, training epochs 70-100
+      const stagePercent = (from, to, done, total) => from + (to - from) * (total ? done / total : 1);
+
       // Load transfer model
       this._notifyProgress(progressCallback, {
         stage: 'loading',
         message: 'Loading mobilenet...',
-        progress: 20
+        progress: 2
       });
 
-      this.transferModel = await this.modelBuilder.getTransferModel();
-
-      this._notifyProgress(progressCallback, {
-        stage: 'loading',
-        message: 'Truncating mobilenet...',
-        progress: 50
+      this.transferModel = await this.modelBuilder.getTransferModel((fraction) => {
+        this._notifyProgress(progressCallback, {
+          stage: 'loading',
+          message: `Loading mobilenet... ${Math.round(fraction * 100)}%`,
+          progress: stagePercent(2, 15, fraction, 1)
+        });
       });
 
       // Generate input tensors
-      const { images, labels, labelIndex } = await this.dataProcessor.generateInputTensors(imageMap);
+      const { images, labels, labelIndex } = await this.dataProcessor.generateInputTensors(imageMap, (done, total) => {
+        this._notifyProgress(progressCallback, {
+          stage: 'preprocessing',
+          message: `Preparing images ${done}/${total}`,
+          progress: stagePercent(15, 35, done, total)
+        });
+      });
       this.labelIndex = labelIndex;
 
       // Generate activations
-      const activations = this._generateActivations(images);
+      const activations = await this._generateActivations(images, (done, total) => {
+        this._notifyProgress(progressCallback, {
+          stage: 'features',
+          message: `Extracting features ${done}/${total}`,
+          progress: stagePercent(35, 65, done, total)
+        });
+      });
 
       // Build custom model with user's optimizer settings
       this._notifyProgress(progressCallback, {
         stage: 'building',
         message: 'Building custom model...',
-        progress: 70
+        progress: 65
       });
 
       // Create new ModelBuilder with merged config to apply optimizer + learningRate
@@ -222,13 +239,19 @@ export class ImageClassifier {
     }
   }
 
-  _generateActivations(images) {
+  // onProgress(done, total) is called after each image's features are extracted
+  async _generateActivations(images, onProgress) {
     // Extract from TestView.js lines 136-146
     const activations = [];
-    tf.unstack(images).forEach(image => {
-      const activation = this._extractFeatures(tf.stack([image]));
+    const imageList = tf.unstack(images);
+    for (let i = 0; i < imageList.length; i++) {
+      const activation = this._extractFeatures(tf.stack([imageList[i]]));
       activations.push(tf.unstack(activation)[0]);
-    });
+      if (onProgress) {
+        onProgress(i + 1, imageList.length);
+        await TensorUtils.yieldToUI();
+      }
+    }
     return tf.stack(activations);
   }
 
@@ -247,7 +270,7 @@ export class ImageClassifier {
         this._notifyProgress(progressCallback, {
           stage: 'splitting',
           message: 'Creating validation split...',
-          progress: 65
+          progress: 67
         });
 
         splitTensors = ValidationSplitter.splitStratified(activations, labels, 0.2, 42);
@@ -314,6 +337,12 @@ export class ImageClassifier {
         console.log(`  Validation data shapes: activations=${valActivations.shape}, labels=${valLabels.shape}`);
         console.log('  fitOptions:', fitOptions);
       }
+
+      this._notifyProgress(progressCallback, {
+        stage: 'training',
+        message: 'Training...',
+        progress: 70
+      });
 
       // Train the model
       console.log(`🚀 Starting model.fit() with ${trainActivations.shape[0]} training samples, batch size: ${batchSize}, epochs: ${trainingConfig.epochs}`);

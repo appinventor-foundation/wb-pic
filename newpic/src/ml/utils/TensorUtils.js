@@ -9,6 +9,12 @@ export class TensorUtils {
     });
   }
 
+  // Lets the browser repaint (e.g. a progress bar) during long loops of synchronous tensor work.
+  // setTimeout rather than tf.nextFrame: requestAnimationFrame stalls in background tabs.
+  static yieldToUI() {
+    return new Promise(resolve => setTimeout(resolve, 0));
+  }
+
   static getMemoryInfo() {
     return tf.memory();
   }

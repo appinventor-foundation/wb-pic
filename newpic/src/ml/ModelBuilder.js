@@ -6,7 +6,8 @@ export class ModelBuilder {
     this.config = config;
   }
 
-  async getTransferModel() {
+  // onProgress(fraction) is called with the model download progress, 0 to 1
+  async getTransferModel(onProgress) {
     // Extract from TestView.js lines 52-65
     try {
       const { url, truncationLayer, modelFormat = 'layers', fromTFHub = false } = this.config.transferModel;
@@ -15,14 +16,14 @@ export class ModelBuilder {
       if (modelFormat === 'graph') {
         // GraphModel format (e.g., MobileNet v2)
         // Cannot truncate upfront - must use execute() during prediction
-        const model = await tf.loadGraphModel(url, { fromTFHub });
+        const model = await tf.loadGraphModel(url, { fromTFHub, onProgress });
         console.log('Loaded MobileNet as GraphModel');
         console.log(`Will extract features from layer: ${truncationLayer}`);
         return model;
       } else {
         // LayersModel format (e.g., MobileNet v1)
         // Can create truncated model upfront
-        const model = await tf.loadLayersModel(url);
+        const model = await tf.loadLayersModel(url, { onProgress });
         const layer = model.getLayer(truncationLayer);
         const truncated = tf.model({
           inputs: model.inputs,
