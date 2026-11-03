@@ -4,7 +4,8 @@ import ProgressBar from 'react-bootstrap/ProgressBar';
 import { useImageMap } from '../contexts/ImageMapContext';
 import { useSharedClassifier } from '../contexts/ImageClassifierContext';
 import { useSharedWebcam } from '../contexts/WebcamContext';
-import { readFilesAsDataURLs } from '../hooks/useFileReader';
+import { readFilesAsDataURLs, createThumbnail } from '../hooks/useFileReader';
+import PredictionHistory from './PredictionHistory';
 import * as tf from '@tensorflow/tfjs';
 
 const PredictionBars = ({ predictions, compact = false }) => (
@@ -70,11 +71,13 @@ const ImageCard = ({ item }) => (
 );
 
 const PreviewSection = () => {
-  const { isTrained, testImage, setTestImage, predictions, setPredictions, setActiveWebcamClass } = useImageMap();
+  const { isTrained, testImage, setTestImage, predictions, setPredictions, setActiveWebcamClass, addHistoryEntry } = useImageMap();
   const { predict } = useSharedClassifier();
   const { streamRef, working, startCamera } = useSharedWebcam();
   const localVideoRef = useRef(null);
   const fileInputRef = useRef(null);
+  // Last single capture that was logged, so a re-run of the prediction effect doesn't log it twice
+  const lastRecordedImage = useRef(null);
   const [videoReady, setVideoReady] = useState(false);
   const [uploadedImages, setUploadedImages] = useState([]);
 
@@ -123,6 +126,19 @@ const PreviewSection = () => {
     const beginWidth = centerWidth - (size / 2);
     return img.slice([beginHeight, beginWidth, 0], [size, size, 3]);
   }, []);
+
+  const recordInference = useCallback(async (dataUrl, results) => {
+    const thumb = await createThumbnail(dataUrl);
+    addHistoryEntry({
+      id: `inference-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      thumb,
+      // Copy: PredictionBars sorts the array it is given in place
+      predictions: [...results]
+        .sort((a, b) => b.confidence - a.confidence)
+        .map(({ label, confidence }) => ({ label, confidence })),
+      time: Date.now()
+    });
+  }, [addHistoryEntry]);
 
   const handleCapture = useCallback(async () => {
     if (!localVideoRef.current || !videoReady) {
@@ -182,6 +198,7 @@ const PreviewSection = () => {
           setUploadedImages(prev => prev.map((img, i) =>
             i === index ? { ...img, predictions: results, loading: false } : img
           ));
+          if (results) recordInference(dataUrl, results);
         } catch (err) {
           console.error('Prediction failed for image', index, err);
           setUploadedImages(prev => prev.map((img, i) =>
@@ -192,7 +209,7 @@ const PreviewSection = () => {
     } catch (err) {
       console.error('Failed to load files:', err);
     }
-  }, [predict, testImage, setTestImage]);
+  }, [predict, testImage, setTestImage, recordInference]);
 
   const handleClearGrid = useCallback(() => {
     setUploadedImages([]);
@@ -207,14 +224,20 @@ const PreviewSection = () => {
     const runPrediction = async () => {
       try {
         const results = await predict(testImage);
-        if (results) setPredictions(results);
+        if (results) {
+          setPredictions(results);
+          if (lastRecordedImage.current !== testImage) {
+            lastRecordedImage.current = testImage;
+            recordInference(testImage, results);
+          }
+        }
       } catch (error) {
         console.error('Prediction failed:', error);
       }
     };
 
     runPrediction();
-  }, [testImage, predict, isTrained, setPredictions]);
+  }, [testImage, predict, isTrained, setPredictions, recordInference]);
 
   if (!isTrained) {
     return (
@@ -429,6 +452,8 @@ const PreviewSection = () => {
           </div>
         </div>
       )}
+
+      <PredictionHistory />
     </section>
   );
 };

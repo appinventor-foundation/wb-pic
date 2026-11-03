@@ -8,7 +8,7 @@ import AdvancedSettings from './AdvancedSettings';
 import { DEFAULT_CONFIG } from '../ml/config/defaults';
 
 const TrainSection = () => {
-  const { imageMap, setIsTrained, setActiveWebcamClass, serverUrl, setServerUrl } = useImageMap();
+  const { imageMap, setIsTrained, setActiveWebcamClass, serverUrl, setServerUrl, startRun } = useImageMap();
   const { train, trainOnServer, loading, progress, message, error, validationMetrics, trainingSummary } = useSharedClassifier();
 
   const [showSettings, setShowSettings] = useState(false);
@@ -41,9 +41,10 @@ const TrainSection = () => {
       ? await trainOnServer(imageMap, trainingOptions, serverUrl)
       : await train(imageMap, trainingOptions);
     if (success) {
+      startRun(`${trainingOptions.transferModel?.label || 'Custom model'} · ${trainingMode}`);
       setIsTrained(true);
     }
-  }, [canTrain, train, trainOnServer, imageMap, trainingOptions, trainingMode, serverUrl, setIsTrained, setActiveWebcamClass]);
+  }, [canTrain, train, trainOnServer, imageMap, trainingOptions, trainingMode, serverUrl, setIsTrained, setActiveWebcamClass, startRun]);
 
   return (
     <section style={{ marginBottom: '60px' }}>
