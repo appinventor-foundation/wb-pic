@@ -83,21 +83,22 @@ const PreviewSection = () => {
 
   const isGridMode = uploadedImages.length > 0;
 
-  // Release webcam from training classes and start it for preview
+  // Release webcam from training classes and start it for preview.
+  // The live feed stays on screen while results are shown next to it.
   useEffect(() => {
-    if (isTrained && !testImage && !isGridMode) {
+    if (isTrained) {
       setActiveWebcamClass(null);
       startCamera();
     }
-  }, [isTrained, testImage, isGridMode, setActiveWebcamClass, startCamera]);
+  }, [isTrained, setActiveWebcamClass, startCamera]);
 
   // Attach the shared stream to this component's video element
   useEffect(() => {
-    if (isTrained && !testImage && !isGridMode && localVideoRef.current && streamRef.current) {
+    if (isTrained && localVideoRef.current && streamRef.current) {
       localVideoRef.current.srcObject = streamRef.current;
       setVideoReady(false);
     }
-  }, [isTrained, streamRef, testImage, isGridMode, working]);
+  }, [isTrained, streamRef, working]);
 
   const handleVideoLoaded = useCallback(() => {
     setVideoReady(true);
@@ -105,7 +106,7 @@ const PreviewSection = () => {
 
   // Fallback: Check video ready state periodically
   useEffect(() => {
-    if (!isTrained || testImage || isGridMode || !localVideoRef.current) return;
+    if (!isTrained || !localVideoRef.current) return;
 
     const checkVideoReady = () => {
       if (localVideoRef.current && localVideoRef.current.readyState >= 2) {
@@ -116,7 +117,7 @@ const PreviewSection = () => {
     checkVideoReady();
     const timer = setTimeout(checkVideoReady, 1000);
     return () => clearTimeout(timer);
-  }, [isTrained, streamRef, testImage, isGridMode]);
+  }, [isTrained, streamRef]);
 
   const cropImage = useCallback((img) => {
     const size = Math.min(img.shape[0], img.shape[1]);
@@ -166,11 +167,13 @@ const PreviewSection = () => {
       let imageString = canvas.toDataURL();
 
       result.dispose();
+      // Drop the previous result so it isn't shown next to the new capture
+      setPredictions(null);
       setTestImage(imageString);
     } catch (error) {
       console.error('Capture failed:', error);
     }
-  }, [cropImage, setTestImage, videoReady]);
+  }, [cropImage, setTestImage, setPredictions, videoReady]);
 
   const handleUpload = useCallback(async (e) => {
     const files = Array.from(e.target.files || []);
@@ -213,9 +216,12 @@ const PreviewSection = () => {
 
   const handleClearGrid = useCallback(() => {
     setUploadedImages([]);
-    setActiveWebcamClass(null);
-    startCamera();
-  }, [setActiveWebcamClass, startCamera]);
+  }, []);
+
+  const handleClearResult = useCallback(() => {
+    setTestImage(null);
+    setPredictions(null);
+  }, [setTestImage, setPredictions]);
 
   // Predict when a single webcam capture is set
   useEffect(() => {
@@ -277,181 +283,170 @@ const PreviewSection = () => {
         3. Preview
       </h2>
 
-      {isGridMode ? (
-        /* ── Grid mode: multiple uploaded images ── */
-        <div style={{
-          backgroundColor: 'white',
-          borderRadius: '12px',
-          padding: '24px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-        }}>
-          {/* Toolbar */}
+      <div style={{
+        backgroundColor: 'white',
+        borderRadius: '12px',
+        padding: '24px',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+        display: 'grid',
+        gridTemplateColumns: '300px 1fr',
+        gap: '32px'
+      }}>
+        {/* Left: live feed */}
+        <div>
           <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: '20px',
-            flexWrap: 'wrap',
-            gap: '8px'
+            backgroundColor: '#000',
+            borderRadius: '8px',
+            overflow: 'hidden',
+            aspectRatio: '1',
+            marginBottom: '12px',
+            position: 'relative'
           }}>
-            <span style={{ fontSize: '14px', color: '#666', fontFamily: 'Poppins-Regular' }}>
-              {uploadedImages.length} image{uploadedImages.length !== 1 ? 's' : ''}
-            </span>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <Button
-                variant="outline-primary"
-                size="sm"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                Upload More
-              </Button>
-              <Button
-                variant="outline-secondary"
-                size="sm"
-                onClick={handleClearGrid}
-              >
-                Clear All
-              </Button>
-            </div>
-          </div>
-
-          {/* Image grid */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-            gap: '16px'
-          }}>
-            {uploadedImages.map(item => (
-              <ImageCard key={item.id} item={item} />
-            ))}
-          </div>
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={handleUpload}
-            style={{ display: 'none' }}
-          />
-        </div>
-      ) : (
-        /* ── Single / webcam mode ── */
-        <div style={{
-          backgroundColor: 'white',
-          borderRadius: '12px',
-          padding: '24px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-          display: 'grid',
-          gridTemplateColumns: '300px 1fr',
-          gap: '32px'
-        }}>
-          {/* Left: Input */}
-          <div>
-            <div style={{
-              backgroundColor: '#000',
-              borderRadius: '8px',
-              overflow: 'hidden',
-              aspectRatio: '1',
-              marginBottom: '12px',
-              position: 'relative'
-            }}>
-              {testImage ? (
-                <img
-                  src={testImage}
-                  alt="Test"
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-              ) : (
-                <>
-                  <video
-                    ref={localVideoRef}
-                    autoPlay
-                    playsInline
-                    muted
-                    onLoadedData={handleVideoLoaded}
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                      display: working ? 'block' : 'none'
-                    }}
-                  />
-                  {!working && (
-                    <div style={{
-                      position: 'absolute',
-                      top: '50%',
-                      left: '50%',
-                      transform: 'translate(-50%, -50%)',
-                      color: 'white',
-                      textAlign: 'center',
-                      fontSize: '14px'
-                    }}>
-                      No webcam
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <Button
-                variant="primary"
-                onClick={handleCapture}
-                disabled={!working || !videoReady}
-                style={{ width: '100%' }}
-              >
-                {!videoReady && working ? 'Loading...' : 'Capture'}
-              </Button>
-              <Button
-                variant="outline-primary"
-                onClick={() => fileInputRef.current?.click()}
-                style={{ width: '100%' }}
-              >
-                Upload Images
-              </Button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={handleUpload}
-                style={{ display: 'none' }}
-              />
-              {testImage && (
-                <Button
-                  variant="outline-secondary"
-                  onClick={() => setTestImage(null)}
-                  style={{ width: '100%', fontSize: '14px' }}
-                >
-                  Clear
-                </Button>
-              )}
-            </div>
-          </div>
-
-          {/* Right: Output */}
-          <div>
-            <h3 style={{
-              fontSize: '16px',
-              fontWeight: '500',
-              marginBottom: '16px',
-              fontFamily: 'Poppins-Regular',
-              color: '#1a1a1d'
-            }}>
-              Output
-            </h3>
-
-            {!predictions ? (
-              <p style={{ color: '#999', fontSize: '14px' }}>
-                Capture or upload an image to see predictions
-              </p>
-            ) : (
-              <PredictionBars predictions={predictions} />
+            <video
+              ref={localVideoRef}
+              autoPlay
+              playsInline
+              muted
+              onLoadedData={handleVideoLoaded}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                display: working ? 'block' : 'none'
+              }}
+            />
+            {!working && (
+              <div style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                color: 'white',
+                textAlign: 'center',
+                fontSize: '14px'
+              }}>
+                No webcam
+              </div>
             )}
           </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <Button
+              variant="primary"
+              onClick={handleCapture}
+              disabled={!working || !videoReady}
+              style={{ width: '100%' }}
+            >
+              {!videoReady && working ? 'Loading...' : 'Capture'}
+            </Button>
+            <Button
+              variant="outline-primary"
+              onClick={() => fileInputRef.current?.click()}
+              style={{ width: '100%' }}
+            >
+              Upload Images
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleUpload}
+              style={{ display: 'none' }}
+            />
+          </div>
         </div>
-      )}
+
+        {/* Right: captured image with its results, or the uploaded images */}
+        <div style={{ minWidth: 0 }}>
+          {isGridMode ? (
+            <>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '16px',
+                flexWrap: 'wrap',
+                gap: '8px'
+              }}>
+                <span style={{ fontSize: '14px', color: '#666', fontFamily: 'Poppins-Regular' }}>
+                  {uploadedImages.length} image{uploadedImages.length !== 1 ? 's' : ''}
+                </span>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <Button
+                    variant="outline-primary"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    Upload More
+                  </Button>
+                  <Button
+                    variant="outline-secondary"
+                    size="sm"
+                    onClick={handleClearGrid}
+                  >
+                    Clear All
+                  </Button>
+                </div>
+              </div>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+                gap: '16px'
+              }}>
+                {uploadedImages.map(item => (
+                  <ImageCard key={item.id} item={item} />
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '16px'
+              }}>
+                <h3 style={{
+                  fontSize: '16px',
+                  fontWeight: '500',
+                  margin: 0,
+                  fontFamily: 'Poppins-Regular',
+                  color: '#1a1a1d'
+                }}>
+                  Output
+                </h3>
+                {testImage && (
+                  <Button variant="outline-secondary" size="sm" onClick={handleClearResult}>
+                    Clear
+                  </Button>
+                )}
+              </div>
+
+              {testImage ? (
+                <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                  <img
+                    src={testImage}
+                    alt="Captured"
+                    style={{ width: '240px', height: '240px', objectFit: 'cover', borderRadius: '8px', flexShrink: 0 }}
+                  />
+                  <div style={{ flex: 1, minWidth: '200px' }}>
+                    {predictions ? (
+                      <PredictionBars predictions={predictions} />
+                    ) : (
+                      <p style={{ color: '#999', fontSize: '14px' }}>Predicting…</p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <p style={{ color: '#999', fontSize: '14px' }}>
+                  Capture or upload an image to see predictions
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      </div>
 
       <PredictionHistory />
     </section>
