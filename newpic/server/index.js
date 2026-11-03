@@ -1,5 +1,29 @@
 'use strict';
 
+// tfjs-node 4.x still calls util helpers that Node 23 removed
+// (e.g. "util.isNullOrUndefined is not a function" when training starts).
+// Restore them before TensorFlow loads so the server also runs on newer Node.
+const util = require('util');
+const legacyUtilHelpers = {
+  isArray: Array.isArray,
+  isBoolean: v => typeof v === 'boolean',
+  isNull: v => v === null,
+  isNullOrUndefined: v => v === null || v === undefined,
+  isNumber: v => typeof v === 'number',
+  isString: v => typeof v === 'string',
+  isSymbol: v => typeof v === 'symbol',
+  isUndefined: v => v === undefined,
+  isObject: v => v !== null && typeof v === 'object',
+  isFunction: v => typeof v === 'function',
+  isRegExp: v => v instanceof RegExp,
+  isDate: v => v instanceof Date,
+  isError: v => v instanceof Error,
+  isPrimitive: v => v === null || (typeof v !== 'object' && typeof v !== 'function')
+};
+for (const [name, helper] of Object.entries(legacyUtilHelpers)) {
+  if (typeof util[name] !== 'function') util[name] = helper;
+}
+
 // GPU/CPU auto-detection — must happen before any tf usage.
 // @tensorflow/tfjs-node-gpu installs successfully on Mac (uses Apple Metal / CPU)
 // and on Linux with CUDA. We load it first and let TF pick the best device.
