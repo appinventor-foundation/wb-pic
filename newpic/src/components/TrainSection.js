@@ -6,10 +6,10 @@ import { useImageMap } from '../contexts/ImageMapContext';
 import { useSharedClassifier } from '../contexts/ImageClassifierContext';
 import AdvancedSettings from './AdvancedSettings';
 import { DEFAULT_CONFIG } from '../ml/config/defaults';
-import { SERVER_ENABLED } from '../config/runtime';
+import { SERVER_ENABLED, SERVER_URL } from '../config/runtime';
 
 const TrainSection = () => {
-  const { imageMap, setIsTrained, setActiveWebcamClass, serverUrl, setServerUrl, startRun } = useImageMap();
+  const { imageMap, setIsTrained, setActiveWebcamClass, startRun } = useImageMap();
   const { train, trainOnServer, loading, progress, message, error, validationMetrics, trainingSummary } = useSharedClassifier();
 
   const [showSettings, setShowSettings] = useState(false);
@@ -39,13 +39,13 @@ const TrainSection = () => {
     setActiveWebcamClass(null);
     setIsTrained(false);
     const success = trainingMode === 'server'
-      ? await trainOnServer(imageMap, trainingOptions, serverUrl)
+      ? await trainOnServer(imageMap, trainingOptions, SERVER_URL)
       : await train(imageMap, trainingOptions);
     if (success) {
       startRun(`${trainingOptions.transferModel?.label || 'Custom model'} · ${trainingMode}`);
       setIsTrained(true);
     }
-  }, [canTrain, train, trainOnServer, imageMap, trainingOptions, trainingMode, serverUrl, setIsTrained, setActiveWebcamClass, startRun]);
+  }, [canTrain, train, trainOnServer, imageMap, trainingOptions, trainingMode, setIsTrained, setActiveWebcamClass, startRun]);
 
   return (
     <section style={{ marginBottom: '60px' }}>
@@ -119,26 +119,6 @@ const TrainSection = () => {
               </button>
             ))}
           </div>
-
-          {trainingMode === 'server' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <label style={{ fontSize: '12px', color: '#666', fontFamily: 'Poppins-Regular' }}>Server URL:</label>
-              <input
-                type="text"
-                value={serverUrl}
-                onChange={(e) => setServerUrl(e.target.value)}
-                disabled={loading}
-                style={{
-                  padding: '4px 10px',
-                  fontSize: '12px',
-                  border: '1px solid #ddd',
-                  borderRadius: '4px',
-                  fontFamily: 'monospace',
-                  width: '220px'
-                }}
-              />
-            </div>
-          )}
         </div>
         )}
 
