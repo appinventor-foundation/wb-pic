@@ -6,6 +6,7 @@ import { useImageMap } from '../contexts/ImageMapContext';
 import { useSharedClassifier } from '../contexts/ImageClassifierContext';
 import AdvancedSettings from './AdvancedSettings';
 import { DEFAULT_CONFIG } from '../ml/config/defaults';
+import { SERVER_ENABLED } from '../config/runtime';
 
 const TrainSection = () => {
   const { imageMap, setIsTrained, setActiveWebcamClass, serverUrl, setServerUrl, startRun } = useImageMap();
@@ -94,7 +95,8 @@ const TrainSection = () => {
             <path d="M12 1v6m0 6v6m-9-9h6m6 0h6m-3.8-6.8l-1.4 1.4m-8.4 8.4l-1.4 1.4m11.3 0l-1.4-1.4m-8.4-8.4l-1.4-1.4"></path>
           </svg>
         </button>
-        {/* Training Mode Toggle */}
+        {/* Training Mode Toggle (only when a training server is configured) */}
+        {SERVER_ENABLED && (
         <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
           <div style={{ display: 'flex', gap: '0', border: '1px solid #ddd', borderRadius: '6px', overflow: 'hidden' }}>
             {['browser', 'server'].map((mode) => (
@@ -138,6 +140,7 @@ const TrainSection = () => {
             </div>
           )}
         </div>
+        )}
 
         {!canTrain && (
           <p style={{ color: '#666', marginBottom: '20px', fontSize: '14px' }}>
