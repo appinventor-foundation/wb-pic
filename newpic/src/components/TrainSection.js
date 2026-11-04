@@ -6,9 +6,10 @@ import { useImageMap } from '../contexts/ImageMapContext';
 import { useSharedClassifier } from '../contexts/ImageClassifierContext';
 import AdvancedSettings from './AdvancedSettings';
 import { DEFAULT_CONFIG } from '../ml/config/defaults';
+import { SERVER_ENABLED, SERVER_URL } from '../config/runtime';
 
 const TrainSection = () => {
-  const { imageMap, setIsTrained, setActiveWebcamClass, serverUrl, setServerUrl } = useImageMap();
+  const { imageMap, setIsTrained, setActiveWebcamClass, startRun } = useImageMap();
   const { train, trainOnServer, loading, progress, message, error, validationMetrics, trainingSummary } = useSharedClassifier();
 
   const [showSettings, setShowSettings] = useState(false);
@@ -38,12 +39,13 @@ const TrainSection = () => {
     setActiveWebcamClass(null);
     setIsTrained(false);
     const success = trainingMode === 'server'
-      ? await trainOnServer(imageMap, trainingOptions, serverUrl)
+      ? await trainOnServer(imageMap, trainingOptions, SERVER_URL)
       : await train(imageMap, trainingOptions);
     if (success) {
+      startRun(`${trainingOptions.transferModel?.label || 'Custom model'} · ${trainingMode}`);
       setIsTrained(true);
     }
-  }, [canTrain, train, trainOnServer, imageMap, trainingOptions, trainingMode, serverUrl, setIsTrained, setActiveWebcamClass]);
+  }, [canTrain, train, trainOnServer, imageMap, trainingOptions, trainingMode, setIsTrained, setActiveWebcamClass, startRun]);
 
   return (
     <section style={{ marginBottom: '60px' }}>
@@ -93,7 +95,8 @@ const TrainSection = () => {
             <path d="M12 1v6m0 6v6m-9-9h6m6 0h6m-3.8-6.8l-1.4 1.4m-8.4 8.4l-1.4 1.4m11.3 0l-1.4-1.4m-8.4-8.4l-1.4-1.4"></path>
           </svg>
         </button>
-        {/* Training Mode Toggle */}
+        {/* Training Mode Toggle (only when a training server is configured) */}
+        {SERVER_ENABLED && (
         <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
           <div style={{ display: 'flex', gap: '0', border: '1px solid #ddd', borderRadius: '6px', overflow: 'hidden' }}>
             {['browser', 'server'].map((mode) => (
@@ -116,27 +119,8 @@ const TrainSection = () => {
               </button>
             ))}
           </div>
-
-          {trainingMode === 'server' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <label style={{ fontSize: '12px', color: '#666', fontFamily: 'Poppins-Regular' }}>Server URL:</label>
-              <input
-                type="text"
-                value={serverUrl}
-                onChange={(e) => setServerUrl(e.target.value)}
-                disabled={loading}
-                style={{
-                  padding: '4px 10px',
-                  fontSize: '12px',
-                  border: '1px solid #ddd',
-                  borderRadius: '4px',
-                  fontFamily: 'monospace',
-                  width: '220px'
-                }}
-              />
-            </div>
-          )}
         </div>
+        )}
 
         {!canTrain && (
           <p style={{ color: '#666', marginBottom: '20px', fontSize: '14px' }}>

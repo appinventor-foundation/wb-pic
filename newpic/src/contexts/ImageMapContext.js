@@ -17,7 +17,31 @@ export const ImageMapProvider = ({ children }) => {
   const [testImage, setTestImage] = useState(null);
   const [predictions, setPredictions] = useState(null);
   const [activeWebcamClass, setActiveWebcamClass] = useState(null);
-  const [serverUrl, setServerUrl] = useState('http://localhost:5000');
+  // Inference history, grouped by training run: [{ id, label, trainedAt, entries: [...] }]
+  const [history, setHistory] = useState([]);
+
+  const startRun = useCallback((label) => {
+    setHistory(prev => {
+      const number = (prev.length ? prev[prev.length - 1].number : 0) + 1;
+      return [...prev, { id: `run-${Date.now()}`, number, label, trainedAt: Date.now(), entries: [] }];
+    });
+  }, []);
+
+  const addHistoryEntry = useCallback((entry) => {
+    setHistory(prev => {
+      // Inference without a training run in this session (e.g. a loaded model)
+      const runs = prev.length
+        ? prev
+        : [{ id: `run-${Date.now()}`, number: 1, label: 'Loaded model', trainedAt: Date.now(), entries: [] }];
+      const current = runs[runs.length - 1];
+      return [...runs.slice(0, -1), { ...current, entries: [...current.entries, entry] }];
+    });
+  }, []);
+
+  // Drops past runs and entries but keeps the current run so new inferences stay attributed to it
+  const clearHistory = useCallback(() => {
+    setHistory(prev => (prev.length ? [{ ...prev[prev.length - 1], entries: [] }] : []));
+  }, []);
 
   const addLabel = useCallback((labelName) => {
     setImageMap(prev => ({
@@ -78,8 +102,10 @@ export const ImageMapProvider = ({ children }) => {
     addImage,
     removeImage,
     updateImageMap,
-    serverUrl,
-    setServerUrl
+    history,
+    startRun,
+    addHistoryEntry,
+    clearHistory
   };
 
   return (

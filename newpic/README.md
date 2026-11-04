@@ -7,11 +7,26 @@ implementations) and the ML related code has been separated in the ml folder.
 
 # React app and node app
 The repo now contains both a React app (same as before but with a new interface) and also a node app.
-By default the React app runs on port 3000 and the node app runs on port 5000.
+By default the React app runs on port 3000 and the node app runs on port 3100.
 
 The react app is fully functional without the node side, but the training must be done in the browser. The node app was added so training can be done in the hosting machine.
 
 The node app is in the server folder.
+
+## Configuration
+Two build-time environment variables (Create React App inlines `REACT_APP_*` at build; defaults are in `.env.development` and `.env.production`):
+
+| Variable | Meaning | Default |
+|---|---|---|
+| `REACT_APP_SERVER_URL` | URL of the node (training) app. Empty makes the app browser-only: no Server option in the Training section, and ZIP datasets are read in the browser. | `npm start`: `http://localhost:3100`. `npm run build`: empty |
+| `REACT_APP_MODELS_URL` | Where the bundled transfer models (`mobilenet`, `mobilenet_v2`, `mobilenet_v3`) are read from. | `<PUBLIC_URL>/models` |
+
+`npm start` and `npm run build` first copy the model folders from the repo root into `public/models` (`scripts/copy-models.js`), so the build output is a self-contained set of static files:
+
+```bash
+npm run build                                                  # browser-only
+REACT_APP_SERVER_URL=https://pic.example.org npm run build     # with server training
+```
 
 # Original Content
 

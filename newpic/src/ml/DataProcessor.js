@@ -1,5 +1,14 @@
 import * as tf from '@tensorflow/tfjs';
 import { ImageProcessingError, ValidationError } from './utils/errors';
+import { TensorUtils } from './utils/TensorUtils';
+
+// Input range expected by the transfer model, selected by transferModel.normalization
+const NORMALIZERS = {
+  // (x/127) - 1 maps [0,255] to [-1,1]
+  mobilenet: t => t.toFloat().div(tf.scalar(127)).sub(tf.scalar(1)),
+  // x/255 maps [0,255] to [0,1]
+  unit: t => t.toFloat().div(tf.scalar(255))
+};
 
 export class DataProcessor {
   constructor(config, adapter) {
@@ -31,8 +40,13 @@ export class DataProcessor {
       // Resize to 224x224
       tensor = tensor.resizeBilinear(targetSize);
 
-      // Normalize: (x/127) - 1 maps [0,255] to [-1,1]
-      tensor = tensor.toFloat().div(tf.scalar(127)).sub(tf.scalar(1));
+      // Normalize to the range the selected transfer model expects
+      const { normalization = 'mobilenet' } = this.config.transferModel;
+      const normalize = NORMALIZERS[normalization];
+      if (!normalize) {
+        throw new Error(`Unknown normalization: ${normalization}`);
+      }
+      tensor = normalize(tensor);
 
       return tensor;
     } catch (error) {
@@ -43,7 +57,8 @@ export class DataProcessor {
     }
   }
 
-  async generateInputTensors(imageMap) {
+  // onProgress(done, total) is called after each image is converted
+  async generateInputTensors(imageMap, onProgress) {
     // Extract from TestView.js lines 176-203
     const imageTensors = [];
     const labelTensors = [];
@@ -54,10 +69,18 @@ export class DataProcessor {
       imageMapConverted[label] = [];
     }
 
+    const total = Object.values(imageMap).reduce((sum, images) => sum + images.length, 0);
+    let done = 0;
+
     for (let label in imageMap) {
       for (let imgIndex in imageMap[label]) {
         const convertedImg = await this.convertImage(imageMap[label][imgIndex]);
         imageMapConverted[label].push(convertedImg);
+        done++;
+        if (onProgress) {
+          onProgress(done, total);
+          await TensorUtils.yieldToUI();
+        }
       }
     }
 

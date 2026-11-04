@@ -20,6 +20,8 @@ const ExportSection = () => {
       setUploadError('No trained model to export. Train a model first.');
       return;
     }
+    setUploadError(null);
+    setUploadSuccess(null);
     try {
       await exportModel();
       setUploadSuccess('Model exported successfully!');
@@ -34,6 +36,8 @@ const ExportSection = () => {
       setUploadError('No training data to export. Add some classes first.');
       return;
     }
+    setUploadError(null);
+    setUploadSuccess(null);
     try {
       await exportData(imageMap);
       setUploadSuccess('Training data exported successfully!');

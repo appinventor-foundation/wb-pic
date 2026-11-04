@@ -26,6 +26,13 @@ const SUPPORTED_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif']);
 // Cache transfer models by URL to avoid re-downloading when the same model is reused
 const transferModelCache = {};
 
+// Transfer models bundled in the repo, by the name the client sends in config.transferModel
+const LOCAL_MODEL_DIRS = {
+  mobilenet_local: 'mobilenet',
+  mobilenet_v2_local: 'mobilenetv2',
+  mobilenet_v3_small_local: 'mobilenetv3'
+};
+
 // ─── POST /api/import-zip ─────────────────────────────────────────────────────
 // Accepts a raw ZIP file, extracts images server-side, returns imageMap URLs.
 // Browser never decompresses anything — no beach ball.
@@ -227,23 +234,24 @@ async function runTraining(jobId, imageMap, config) {
 
   try {
     // 1. Load transfer model (cached by URL to avoid re-downloading)
-    const { name, truncationLayer, modelFormat = 'layers' } = config.transferModel || {};
+    const { name, truncationLayer, modelFormat = 'layers', normalization, fromTFHub = false } = config.transferModel || {};
     let { url } = config.transferModel || {};
     if (!url || !truncationLayer) {
       throw new Error('config.transferModel must include url and truncationLayer');
     }
 
-    // For the local model the browser URL points at our own static route; the server
-    // can load it much more efficiently straight from disk.
-    if (name === 'mobilenet_local') {
-      const localPath = path.resolve(__dirname, '../../../mobilenet/model.json');
+    // For the local models the browser URL points at wherever the app hosts them
+    // (possibly a relative path the server can't resolve); the server loads them
+    // straight from disk instead, which is also much faster.
+    if (LOCAL_MODEL_DIRS[name]) {
+      const localPath = path.resolve(__dirname, '../../..', LOCAL_MODEL_DIRS[name], 'model.json');
       url = `file://${localPath}`;
     }
 
     notify(5, `Loading transfer model (${name || modelFormat})...`);
     if (!transferModelCache[url]) {
       if (modelFormat === 'graph') {
-        transferModelCache[url] = await tf.loadGraphModel(url);
+        transferModelCache[url] = await tf.loadGraphModel(url, { fromTFHub });
       } else {
         const fullModel = await tf.loadLayersModel(url);
         const layer = fullModel.getLayer(truncationLayer);
@@ -271,7 +279,7 @@ async function runTraining(jobId, imageMap, config) {
     for (const label of labels) {
       const oneHot = labels.map(l => (l === label ? 1 : 0));
       for (const input of imageMap[label]) {
-        const imgTensor = await loadImageTensor(tf, input);
+        const imgTensor = await loadImageTensor(tf, input, normalization);
         const batched = tf.expandDims(imgTensor, 0);
         const activation = modelFormat === 'graph'
           ? transferModel.execute(batched, truncationLayer)
@@ -360,7 +368,7 @@ async function runTraining(jobId, imageMap, config) {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-async function loadImageTensor(tf, input) {
+async function loadImageTensor(tf, input, normalization) {
   let buffer;
 
   if (typeof input === 'string' && input.startsWith('data:')) {
@@ -383,8 +391,11 @@ async function loadImageTensor(tf, input) {
   const pixelData = new Uint8Array(data);
   const raw = tf.tensor3d(pixelData, [info.height, info.width, 3], 'int32');
 
-  // Normalize: (x / 127) - 1 → [-1, 1]
-  const normalized = raw.toFloat().div(tf.scalar(127)).sub(tf.scalar(1));
+  // Normalize to the range the transfer model expects
+  // 'mobilenet': (x / 127) - 1 → [-1, 1]; 'unit': x / 255 → [0, 1]
+  const normalized = normalization === 'unit'
+    ? raw.toFloat().div(tf.scalar(255))
+    : raw.toFloat().div(tf.scalar(127)).sub(tf.scalar(1));
   raw.dispose();
   return normalized;
 }

@@ -3,13 +3,14 @@ import Button from 'react-bootstrap/Button';
 import ProgressBar from 'react-bootstrap/ProgressBar';
 import { useImageMap } from '../contexts/ImageMapContext';
 import { useZipImport } from '../hooks/useZipImport';
+import { SERVER_URL } from '../config/runtime';
 import ClassSection from './ClassSection';
 import TrainSection from './TrainSection';
 import PreviewSection from './PreviewSection';
 import ExportSection from './ExportSection';
 
 const TeachableMachineLayout = () => {
-  const { imageMap, addLabel, updateImageMap, serverUrl } = useImageMap();
+  const { imageMap, addLabel, updateImageMap } = useImageMap();
   const [newClassName, setNewClassName] = useState('');
   const [showNameInput, setShowNameInput] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -32,7 +33,7 @@ const TeachableMachineLayout = () => {
       setImportProgress(null);
       clearInterval(elapsedIntervalRef.current);
     },
-    serverUrl,
+    SERVER_URL,
     (progress) => setImportProgress(progress)
   );
 

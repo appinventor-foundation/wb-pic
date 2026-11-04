@@ -8,7 +8,7 @@ export class ModelExporter {
 
   async exportModel(model, labelIndex) {
     // Extract from TestView.js lines 205-247
-    const { extensionName, truncationLayer, url } = this.config.transferModel;
+    const { extensionName, truncationLayer, url, normalization } = this.config.transferModel;
     if (!extensionName) {
       throw new Error(`The selected transfer model (${this.config.transferModel.name}) is not supported by the App Inventor extension and cannot be exported.`);
     }
@@ -17,6 +17,10 @@ export class ModelExporter {
       lastLayer: truncationLayer,
       url
     };
+    if (normalization) {
+      // Lets App Inventor scale input images the way this model was trained
+      transferModelInfo.normalization = normalization;
+    }
 
     const zipSaver = {
       save: async (modelSpecs) => {

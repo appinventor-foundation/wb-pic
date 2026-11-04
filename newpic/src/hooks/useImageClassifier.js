@@ -151,35 +151,33 @@ export const useImageClassifier = () => {
     }
   }, []);
 
+  // Export failures are thrown so the caller (ExportSection) can report them
+  // instead of announcing success.
   const exportModel = useCallback(async () => {
     if (!classifierRef.current) {
-      setError('No model to export');
-      return;
+      throw new Error('No model to export');
     }
 
     try {
       await classifierRef.current.exportModel();
       setMessage('Model exported successfully');
     } catch (err) {
-      const errorMessage = `Export failed: ${err.message}`;
-      setError(errorMessage);
-      console.error(errorMessage);
+      console.error(`Export failed: ${err.message}`);
+      throw err;
     }
   }, []);
 
   const exportData = useCallback(async (imageMap) => {
     if (!classifierRef.current) {
-      setError('No data to export');
-      return;
+      throw new Error('No data to export');
     }
 
     try {
       await classifierRef.current.exportData(imageMap);
       setMessage('Data exported successfully');
     } catch (err) {
-      const errorMessage = `Data export failed: ${err.message}`;
-      setError(errorMessage);
-      console.error(errorMessage);
+      console.error(`Data export failed: ${err.message}`);
+      throw err;
     }
   }, []);
 
