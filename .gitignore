@@ -7,3 +7,4 @@ newpic/server/output/
 *.swp
 
 .DS_Store
+newpic/public/models/

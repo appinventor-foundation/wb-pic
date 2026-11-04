@@ -21,6 +21,9 @@
     "react-scroll": "^1.9.0"
   },
   "scripts": {
+    "copy-models": "node scripts/copy-models.js",
+    "prestart": "npm run copy-models",
+    "prebuild": "npm run copy-models",
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
