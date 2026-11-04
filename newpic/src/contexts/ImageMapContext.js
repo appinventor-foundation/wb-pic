@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
+import { SERVER_URL } from '../config/runtime';
 
 const ImageMapContext = createContext();
 
@@ -17,7 +18,7 @@ export const ImageMapProvider = ({ children }) => {
   const [testImage, setTestImage] = useState(null);
   const [predictions, setPredictions] = useState(null);
   const [activeWebcamClass, setActiveWebcamClass] = useState(null);
-  const [serverUrl, setServerUrl] = useState('http://localhost:3100');
+  const [serverUrl, setServerUrl] = useState(SERVER_URL);
   // Inference history, grouped by training run: [{ id, label, trainedAt, entries: [...] }]
   const [history, setHistory] = useState([]);
 
