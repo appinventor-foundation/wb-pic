@@ -68,11 +68,11 @@ npm start
 There are a number of ways that this software can be deployed.
 
 ### Standalone, in browser only app
-This mode can be deployed by simply serving the files from the output of `npm build` on any web server such as Apache or Nginx.
+This mode can be deployed by simply serving the files from the output of `npm run build` on any web server such as Apache or Nginx. The build includes the models and, by default, no server features (see `REACT_APP_SERVER_URL` and `REACT_APP_MODELS_URL` in `newpic/README.md`).
 
 ### Browser and Server training
 This mode needs nodejs installed in the server machine. The sources in the `newpic/server` folder can be run with the node command; it is an expressjs app.
-Running in server mode also means that the React app or front end could be served as static assets from the same node server.
+Build the React app with `REACT_APP_SERVER_URL` set to the server's address to enable it. Running in server mode also means that the React app or front end could be served as static assets from the same node server.
 
 For production the recommended setup would be nginx as reverse proxy serving the app as statis aseets and the node app in a local port. Docker images can also be generated.
 
