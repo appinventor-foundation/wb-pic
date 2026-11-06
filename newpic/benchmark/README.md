@@ -26,11 +26,7 @@ The dataset folder must contain `benign/` and `malignant/` image folders. The de
 Results are written to `benchmark/results/benchmark-<date>.json`. The
 notebook's report cells read that JSON, so a report can be regenerated without re-running anything.
 
-Tests for the pure-JS core (splits, metrics, aggregation, charts): `npm run benchmark:test`.
-
-Chart images (confusion matrix, ROC curve, training loss, training accuracy) can be regenerated from a saved run with
-`npm run benchmark:charts` (newest `benchmark-*.json`) or `npm run benchmark:charts -- path/to/results.json`. They are
-written as SVG and PNG to `benchmark/results/charts/`.
+Tests for the pure-JS core (splits, metrics, aggregation): `npm run benchmark:test`.
 
 ## What is measured
 
@@ -40,8 +36,6 @@ written as SVG and PNG to `benchmark/results/charts/`.
 - **Per class:** precision, recall and F1 with benign and with malignant as the positive class, plus macro averages
   (`perClassRows`, computed from the stored out-of-fold scores), and pooled confusion matrices.
 - **Training curves:** training loss and accuracy per epoch (no validation set in the app's training).
-- **Paired comparison:** out-of-fold predictions for every image, exact McNemar test on accuracy, paired bootstrap CI
-  on the ROC-AUC difference.
 - **Training:** the app's own settings for both models (20 epochs, Adam at learning rate 1e-4, batch size 40% of the
   training set). There are no other training variants.
 - **Data efficiency:** learning curve over training images per class.
@@ -57,13 +51,12 @@ core/extract.js   streams images through the frozen backbone one at a time (Data
                   the same truncation as ImageClassifier); features kept on the CPU, cached in IndexedDB
 core/head.js      the app's conv head via its ModelBuilder, seeded init and epoch order
 core/splits.js    seeded stratified k-fold and nested per-class subsampling
-core/metrics.js   metrics, ROC, bootstrap, McNemar (all pure)
+core/metrics.js   metrics, ROC, calibration (all pure)
 core/aggregate.js results JSON -> report tables (pure)
-core/charts.js    results JSON -> SVG charts (pure); export-charts.js writes SVG and PNG
 core/speed.js     latency / size benchmark
 core/bench.js     orchestration, checkpointing, results schema
 notebooks/index.html   run + report
-vite.js, serve.js, build.js   dev server (adds /dataset, /models, /results, /env.json)
+vite.js, serve.js   dev server (adds /dataset, /models, /results, /env.json)
 ```
 
 Extraction is the expensive step and the backbone is frozen, so features are extracted once per model and every fold,

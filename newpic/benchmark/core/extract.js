@@ -48,7 +48,7 @@ export const featureCacheKey = (modelKey, fileListHash) => {
 // Streams the dataset through the frozen backbone one image at a time and keeps the feature maps
 // on the CPU (N * H*W*C floats), so nothing accumulates on the GPU. Each image runs inside its own
 // tf scope because DataProcessor.convertImage leaves its intermediate tensors undisposed.
-export async function extractFeatures({ modelKey, dataset, onProgress, shouldCancel, useCache = true }) {
+export async function extractFeatures({ modelKey, dataset, onProgress, useCache = true }) {
   const key = featureCacheKey(modelKey, dataset.fileListHash);
   if (useCache) {
     const hit = await cacheGet(key);
@@ -68,7 +68,6 @@ export async function extractFeatures({ modelKey, dataset, onProgress, shouldCan
   }
   const t0 = performance.now();
   for (let i = start; i < n; i++) {
-    if (shouldCancel?.()) throw new Error('cancelled');
     tf.engine().startScope();
     try {
       features.set(await withTimeout((async () => {

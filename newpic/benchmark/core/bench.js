@@ -26,7 +26,7 @@ const nextTick = () => new Promise(r => setTimeout(r));
 
 // Runs the whole benchmark and returns one JSON-serialisable results object. Finished runs are checkpointed in
 // IndexedDB under a key that includes the config hash and file-list hash, so an interrupted run resumes.
-export async function runBenchmark({ config = BENCHMARK_CONFIG, onProgress, shouldCancel, resume = true } = {}) {
+export async function runBenchmark({ config = BENCHMARK_CONFIG, onProgress, resume = true } = {}) {
   await tf.setBackend('webgl'); await tf.ready();
   const dataset = await loadDataset();
   const env = await collectEnvironment(config);
@@ -53,11 +53,10 @@ export async function runBenchmark({ config = BENCHMARK_CONFIG, onProgress, shou
 
   let done = 0;
   for (const model of config.models) {
-    const ex = await extractFeatures({ modelKey: model, dataset, onProgress, shouldCancel });
+    const ex = await extractFeatures({ modelKey: model, dataset, onProgress });
     results.extraction[model] = { count: ex.count, shape: ex.shape, loadMs: ex.loadMs, extractMs: ex.extractMs, fromCache: ex.fromCache };
     const features = tf.tensor4d(ex.features, [ex.count, ...ex.shape]);
     for (const step of plan.filter(p => p.model === model)) {
-      if (shouldCancel?.()) { features.dispose(); throw new Error('cancelled'); }
       const key = `run|v${RUN_VERSION}|${results.env.configHash}|${dataset.fileListHash}|${model}|${step.cond}|${step.fold}|${step.seed}|${step.n}`;
       let record = resume ? await cacheGet(key) : undefined;
       if (!record) {

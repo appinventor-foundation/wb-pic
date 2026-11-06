@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { summaryRows, rocRows, learningCurveRows, outOfFoldScores, pairedComparison, pooledConfusion, lossCurveRows, perClassRows, sampleImages, testPredictionCards, confidentMistakes } from '../core/aggregate.js';
+import { summaryRows, rocRows, learningCurveRows, outOfFoldScores, pooledConfusion, lossCurveRows, perClassRows } from '../core/aggregate.js';
 import { stratifiedKFold } from '../core/splits.js';
 import { allMetrics, tprOnGrid } from '../core/metrics.js';
 
@@ -45,13 +45,6 @@ test('out-of-fold scores cover every sample exactly once', () => {
   assert.ok(s.every((v, i) => v === (labels[i] ? 0.85 : 0.15)));
 });
 
-test('paired comparison favours the better model', () => {
-  const r = pairedComparison(results, 'good', 'bad', 'c', { resamples: 100 });
-  assert.ok(r.aucA > r.aucB);
-  assert.ok(r.aucDiff.lo > 0);
-  assert.ok(r.accuracyA > r.accuracyB);
-});
-
 test('pooled confusion counts every sample once and matches the scores', () => {
   const c = pooledConfusion(results, 'good', 'c', 0);
   assert.deepEqual(c.matrix, [[30, 0], [0, 30]]); // the good model is perfect at 0.5
@@ -77,27 +70,3 @@ test('per-class rows: perfect model scores 1 everywhere, near-chance model does 
   assert.equal(good.support.benign, 30); assert.equal(good.support.malignant, 30);
 });
 
-test('sample images: seeded, per class, ids match the labels', () => {
-  const a = sampleImages(results, 5, 1), b = sampleImages(results, 5, 1), c = sampleImages(results, 5, 2);
-  assert.deepEqual(a, b); assert.notDeepEqual(a, c);
-  assert.equal(a.filter(x => x.y === 0).length, 5); assert.equal(a.filter(x => x.y === 1).length, 5);
-  for (const x of a) { assert.equal(x.id.split('/')[0], x.label); assert.equal(results.dataset.labels[x.idx], x.y); }
-});
-
-test('prediction cards carry every model out-of-fold score for the same image', () => {
-  const cards = testPredictionCards(results, 'c', 4, 1);
-  assert.equal(cards.length, 8);
-  for (const card of cards) {
-    assert.deepEqual(Object.keys(card.scores).sort(), ['bad', 'good']);
-    assert.equal(card.scores.good, card.y ? 0.85 : 0.15);
-  }
-});
-
-test('confident mistakes: only wrong predictions, most confident first', () => {
-  const none = confidentMistakes(results, 'good', 'c', 5);
-  assert.deepEqual([none.fn.length, none.fp.length], [0, 0]); // the perfect model makes none
-  const bad = confidentMistakes(results, 'bad', 'c', 5);
-  assert.ok(bad.fn.length + bad.fp.length > 0);
-  assert.ok(bad.fn.every(x => x.y === 1 && x.p < 0.5) && bad.fp.every(x => x.y === 0 && x.p >= 0.5));
-  for (let i = 1; i < bad.fn.length; i++) assert.ok(bad.fn[i].p >= bad.fn[i - 1].p);
-});

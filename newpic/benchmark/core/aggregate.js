@@ -1,6 +1,5 @@
 // Pure post-processing of a results object (see bench.js) into report tables. No tf, no DOM.
-import { shuffled } from './rng.js';
-import { mean, std, mcnemarExact, pairedBootstrap, rocAuc, allMetrics, confusion, perClassMetrics } from './metrics.js';
+import { mean, std, confusion, perClassMetrics } from './metrics.js';
 
 export const METRIC_KEYS = ['accuracy', 'balancedAccuracy', 'recall', 'specificity', 'precision', 'f1', 'rocAuc', 'prAuc', 'sensAtSpec90', 'sensAtSpec95', 'brier', 'ece'];
 
@@ -64,23 +63,6 @@ export function outOfFoldScores(results, model, cond, seed) {
   return scores.every(s => s !== null) ? scores : null;
 }
 
-// Paired comparison of two models on identical out-of-fold predictions.
-export function pairedComparison(results, modelA, modelB, cond, { resamples = 1000, seed = 1 } = {}) {
-  const s = results.config.headSeeds[0];
-  const a = outOfFoldScores(results, modelA, cond, s), b = outOfFoldScores(results, modelB, cond, s);
-  if (!a || !b) return null;
-  const y = results.dataset.labels;
-  const correct = (sc) => sc.map((v, i) => (v >= 0.5 ? 1 : 0) === y[i]);
-  return {
-    cond, modelA, modelB, n: y.length,
-    accuracyA: mean(correct(a)), accuracyB: mean(correct(b)),
-    mcnemar: mcnemarExact(correct(a), correct(b)),
-    aucA: rocAuc(a, y), aucB: rocAuc(b, y),
-    aucDiff: pairedBootstrap(a, b, y, rocAuc, { resamples, seed }),
-    pooled: { [modelA]: allMetrics(a, y), [modelB]: allMetrics(b, y) }
-  };
-}
-
 // Pooled out-of-fold confusion matrix at threshold 0.5 for one head seed: every image is counted once, in the fold
 // that held it out. Rows are the actual class, columns the predicted class (benign, malignant).
 export function pooledConfusion(results, model, cond, seed = results.config.headSeeds[0]) {
@@ -128,37 +110,4 @@ export function perClassRows(results) {
     rows.push(row);
   }
   return rows;
-}
-
-// ---- galleries (use dataset.ids, so they need a results file saved with this schema) ----
-
-const CLASS_NAMES = ['benign', 'malignant'];
-
-// A seeded random sample of `perClass` images from each class: [{ idx, id, y, label }].
-export function sampleImages(results, perClass, seed = 1) {
-  const { labels, ids } = results.dataset;
-  return [0, 1].flatMap(y => shuffled([...labels.keys()].filter(i => labels[i] === y), seed * 131 + y)
-    .slice(0, perClass).map(idx => ({ idx, id: ids[idx], y, label: CLASS_NAMES[y] })));
-}
-
-// Random images with each model's out-of-fold P(malignant): [{ idx, id, y, label, scores: { [model]: p } }].
-// Out-of-fold means the model that scored an image never trained on it, so these are genuine test predictions.
-export function testPredictionCards(results, cond, perClass, seed = 1) {
-  const { models } = results.config, s = results.config.headSeeds[0];
-  const oof = Object.fromEntries(models.map(m => [m, outOfFoldScores(results, m, cond, s)]));
-  if (models.some(m => !oof[m])) return [];
-  return sampleImages(results, perClass, seed).map(c => ({ ...c, scores: Object.fromEntries(models.map(m => [m, oof[m][c.idx]])) }));
-}
-
-// The model's most confident mistakes: malignant images scored lowest (missed) and benign scored highest (false alarms).
-export function confidentMistakes(results, model, cond, k) {
-  const scores = outOfFoldScores(results, model, cond, results.config.headSeeds[0]);
-  if (!scores) return { fn: [], fp: [] };
-  const { labels, ids } = results.dataset;
-  const pick = (y, cmp, wrong) => [...labels.keys()].filter(i => labels[i] === y && wrong(scores[i]))
-    .sort((a, b) => cmp(scores[a], scores[b])).slice(0, k).map(idx => ({ idx, id: ids[idx], p: scores[idx], y, label: CLASS_NAMES[y] }));
-  return {
-    fn: pick(1, (a, b) => a - b, p => p < 0.5),
-    fp: pick(0, (a, b) => b - a, p => p >= 0.5)
-  };
 }

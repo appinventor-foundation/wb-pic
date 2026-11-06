@@ -2,7 +2,6 @@ import { hashStrings } from './rng.js';
 
 // Class order is fixed so label 1 is always the positive class (malignant).
 export const CLASS_ORDER = ['benign', 'malignant'];
-export const POSITIVE = 'malignant';
 
 // Reads /dataset/manifest.json (served from DATASET_DIR, see vite.js) and uses every image in both class folders.
 export async function loadDataset({ baseUrl = '/dataset' } = {}) {

@@ -1,5 +1,4 @@
-// Shared Vite setup for the benchmark notebook (the `notebooks` CLI takes no Vite config,
-// so preview/build go through serve.js and build.js).
+// Shared Vite setup for the benchmark notebook (the `notebooks` CLI takes no Vite config, so serve.js starts it).
 import fs from 'node:fs';
 import { execSync } from 'node:child_process';
 import path from 'node:path';

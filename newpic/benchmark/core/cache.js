@@ -23,5 +23,3 @@ const run = async (mode, fn) => {
 
 export const cacheGet = (key) => run('readonly', s => s.get(key)).catch(() => undefined);
 export const cachePut = (key, value) => run('readwrite', s => s.put(value, key)).then(() => true, () => false);
-export const cacheKeys = (prefix) => run('readonly', s => s.getAllKeys()).then(k => k.filter(x => x.startsWith(prefix)), () => []);
-export const cacheClear = () => run('readwrite', s => s.clear()).catch(() => undefined);

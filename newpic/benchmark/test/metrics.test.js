@@ -53,23 +53,6 @@ test('brier and ece', () => {
   close(m.expectedCalibrationError([0.9, 0.9], [1, 0]), 0.4); // conf 0.9, accuracy 0.5
 });
 
-test('mcnemar exact', () => {
-  const a = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], b = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-  const r = m.mcnemarExact(a, b);
-  assert.equal(r.b, 10); assert.equal(r.c, 0);
-  close(r.p, 2 / 1024);
-  assert.equal(m.mcnemarExact([1, 0], [1, 0]).p, 1);
-});
-
-test('paired bootstrap CI contains the point estimate for a clear difference', () => {
-  const y = Array.from({ length: 200 }, (_, i) => i % 2);
-  const good = y.map(v => (v ? 0.9 : 0.1));
-  const noisy = y.map((v, i) => (i % 5 === 0 ? 1 - v : v ? 0.7 : 0.3));
-  const r = m.pairedBootstrap(good, noisy, y, m.rocAuc, { resamples: 200, seed: 3 });
-  assert.ok(r.lo <= r.diff && r.diff <= r.hi);
-  assert.ok(r.lo > 0);
-});
-
 test('mean, std, quantile', () => {
   close(m.mean([1, 2, 3]), 2); close(m.std([1, 2, 3]), 1); close(m.quantile([1, 2, 3, 4], 0.5), 2.5);
 });

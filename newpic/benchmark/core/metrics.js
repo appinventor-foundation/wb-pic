@@ -143,33 +143,3 @@ export function allMetrics(scores, y) {
     ece: expectedCalibrationError(scores, y)
   };
 }
-
-// Exact two-sided McNemar test on paired correctness. b = only A right, c = only B right.
-export function mcnemarExact(correctA, correctB) {
-  let b = 0, c = 0;
-  for (let i = 0; i < correctA.length; i++) {
-    if (correctA[i] && !correctB[i]) b++;
-    else if (!correctA[i] && correctB[i]) c++;
-  }
-  const n = b + c;
-  if (n === 0) return { b, c, p: 1 };
-  const k = Math.min(b, c);
-  // P(X <= k) for X ~ Binomial(n, 0.5), via log-space terms
-  const logFact = (m) => { let s = 0; for (let i = 2; i <= m; i++) s += Math.log(i); return s; };
-  let tail = 0;
-  for (let i = 0; i <= k; i++) tail += Math.exp(logFact(n) - logFact(i) - logFact(n - i) - n * Math.LN2);
-  return { b, c, p: Math.min(1, 2 * tail) };
-}
-
-// Paired bootstrap over test samples: CI for metric(A) - metric(B).
-export function pairedBootstrap(scoresA, scoresB, y, metric, { resamples = 1000, seed = 1, rand } = {}) {
-  const r = rand || (() => { let s = seed >>> 0; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }; })();
-  const n = y.length, diffs = [];
-  for (let b = 0; b < resamples; b++) {
-    const idx = Array.from({ length: n }, () => Math.floor(r() * n));
-    const yb = idx.map(i => y[i]);
-    if (!yb.some(v => v) || yb.every(v => v)) { b--; continue; }
-    diffs.push(metric(idx.map(i => scoresA[i]), yb) - metric(idx.map(i => scoresB[i]), yb));
-  }
-  return { diff: metric(scoresA, y) - metric(scoresB, y), lo: quantile(diffs, 0.025), hi: quantile(diffs, 0.975) };
-}
