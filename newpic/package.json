@@ -29,7 +29,8 @@
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "benchmark": "npm run copy-models && node benchmark/serve.js",
-    "benchmark:test": "node --test benchmark/test/"
+    "benchmark:test": "node --test benchmark/test/",
+    "benchmark:charts": "node benchmark/export-charts.js"
   },
   "eslintConfig": {
     "extends": "react-app"
@@ -48,6 +49,7 @@
   },
   "proxy": "http://localhost:3100",
   "devDependencies": {
-    "@observablehq/notebook-kit": "^2.9.1"
+    "@observablehq/notebook-kit": "^2.9.1",
+    "sharp": "^0.33.5"
   }
 }

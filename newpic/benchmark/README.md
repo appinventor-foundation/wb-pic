@@ -26,7 +26,11 @@ The dataset folder must contain `benign/` and `malignant/` image folders. The de
 Results are written to `benchmark/results/benchmark-<date>.json`. The
 notebook's report cells read that JSON, so a report can be regenerated without re-running anything.
 
-Tests for the pure-JS core (splits, metrics, aggregation): `npm run benchmark:test`.
+Tests for the pure-JS core (splits, metrics, aggregation, charts): `npm run benchmark:test`.
+
+Chart images (confusion matrix, ROC curve, training loss, training accuracy) can be regenerated from a saved run with
+`npm run benchmark:charts` (newest `benchmark-*.json`) or `npm run benchmark:charts -- path/to/results.json`. They are
+written as SVG and PNG to `benchmark/results/charts/`.
 
 ## What is measured
 
@@ -55,6 +59,7 @@ core/head.js      the app's conv head via its ModelBuilder, seeded init and epoc
 core/splits.js    seeded stratified k-fold and nested per-class subsampling
 core/metrics.js   metrics, ROC, bootstrap, McNemar (all pure)
 core/aggregate.js results JSON -> report tables (pure)
+core/charts.js    results JSON -> SVG charts (pure); export-charts.js writes SVG and PNG
 core/speed.js     latency / size benchmark
 core/bench.js     orchestration, checkpointing, results schema
 notebooks/index.html   run + report
