@@ -2,7 +2,6 @@ import { tf } from './tf.js';
 import { DEFAULT_CONFIG } from '../../src/ml/config/defaults.js';
 import { ModelBuilder } from '../../src/ml/ModelBuilder.js';
 import { shuffled } from './rng.js';
-import { logLoss } from './metrics.js';
 
 // The one training setup: exactly what the app trains (DEFAULT_CONFIG).
 export const APP_DEFAULT = {
@@ -38,8 +37,6 @@ export async function trainAndPredict({ features, y, trainIdx, testIdx, valIdx =
   model = buildConvHead([H, W, C], cond, seed);
   optimizer = model.optimizer;
   const batchSize = Math.max(1, Math.floor(trainIdx.length * cond.batchSizeFraction));
-  const yTrain = trainIdx.map(i => y[i]), yVal = valIdx?.map(i => y[i]);
-  const accuracy = (scores, labels) => scores.reduce((n, s, i) => n + ((s >= 0.5 ? 1 : 0) === labels[i] ? 1 : 0), 0) / labels.length;
   for (let e = 0; e < cond.epochs; e++) {
     // our own seeded order each epoch (fit's shuffle uses Math.random)
     const order = shuffled(trainIdx, seed * 100003 + e);
@@ -47,8 +44,8 @@ export async function trainAndPredict({ features, y, trainIdx, testIdx, valIdx =
     const h = await model.fit(xs, ys, { epochs: 1, batchSize, shuffle: false, verbose: 0 });
     const entry = { loss: h.history.loss[0], acc: h.history.acc?.[0] ?? h.history.accuracy?.[0] };
     if (valIdx) {
-      const pTrain = await predictInBatches(model, features, trainIdx), pVal = await predictInBatches(model, features, valIdx);
-      Object.assign(entry, { trainLoss: logLoss(pTrain, yTrain), trainAcc: accuracy(pTrain, yTrain), valLoss: logLoss(pVal, yVal), valAcc: accuracy(pVal, yVal) });
+      const train = await evaluateRows(model, features, y, trainIdx), val = await evaluateRows(model, features, y, valIdx);
+      Object.assign(entry, { trainLoss: train.loss, trainAcc: train.acc, valLoss: val.loss, valAcc: val.acc });
     }
     history.push(entry);
     xs.dispose(); ys.dispose();
@@ -57,6 +54,23 @@ export async function trainAndPredict({ features, y, trainIdx, testIdx, valIdx =
   const scores = await predictInBatches(model, features, testIdx);
   model.dispose(); optimizer.dispose();
   return { scores, trainMs, history, leaked: tf.memory().numTensors - before };
+}
+
+// Mean log loss and accuracy of the model on the given rows, from tfjs's own loss and metric, in batches to bound memory.
+async function evaluateRows(model, x, y, idx, batch = 256) {
+  let loss = 0, correct = 0;
+  for (let s = 0; s < idx.length; s += batch) {
+    const part = idx.slice(s, s + batch);
+    const [batchLoss, batchAcc] = tf.tidy(() => {
+      const probs = model.predict(gatherRows(x, part)).slice([0, 1], [-1, 1]); // P(malignant), one column
+      const labels = tf.tensor2d(part.map(i => [y[i]]));
+      return [tf.losses.logLoss(labels, probs), tf.metrics.binaryAccuracy(labels, probs).mean()];
+    });
+    const [lossValue, accValue] = await Promise.all([batchLoss.data(), batchAcc.data()]);
+    loss += lossValue[0] * part.length; correct += accValue[0] * part.length;
+    batchLoss.dispose(); batchAcc.dispose();
+  }
+  return { loss: loss / idx.length, acc: correct / idx.length };
 }
 
 async function predictInBatches(model, x, idx, batch = 256) {

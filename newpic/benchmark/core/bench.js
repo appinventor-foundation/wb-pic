@@ -20,7 +20,7 @@ export const BENCHMARK_CONFIG = {
 };
 
 // Bump when the code that produces a run record changes, so checkpoints from older code are not reused.
-export const RUN_VERSION = 6;
+export const RUN_VERSION = 7;
 
 const round4 = (xs) => Array.from(xs, v => Math.round(v * 1e4) / 1e4);
 const round5 = (v) => Math.round(v * 1e5) / 1e5;
