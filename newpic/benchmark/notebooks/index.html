@@ -1,0 +1,203 @@
+<!doctype html>
+<notebook>
+  <title>MobileNet v1 vs v3 benchmark</title>
+  <script id="intro" type="text/markdown">
+    # MobileNet v1 vs v3 Small: benign vs malignant moles
+
+    Two image classifiers, built on MobileNet v1 and MobileNet v3 Small, are trained to tell benign from malignant moles and compared on the same images and the same splits. Each model keeps its pretrained backbone fixed and trains a small classification head on top, using the same training settings for both. This is not a clinical evaluation; it benchmarks the Personal Image Classifier, a teaching tool.
+  </script>
+
+  <script id="h-read" type="module">
+    // shown only once results exist
+    if (results) display(html`<p><strong>How to read this page.</strong> Malignant is the positive class. Recall (sensitivity) is the share of malignant moles flagged, and specificity is the share of benign moles cleared. Tables show the mean ± standard deviation across ${results.config.split.splits} random splits of the images (${Math.round(results.config.split.train * 100)}% to train the model, ${Math.round(results.config.split.validation * 100)}% to validate it and ${Math.round(results.config.split.test * 100)}% to test it), where each split's result is averaged over ${results.config.headSeeds.length} training runs with different random seeds; when two models differ by less than that spread, treat the difference as weak evidence.</p>`);
+  </script>
+
+  <script id="imports" type="module">
+    import { runBenchmark, BENCHMARK_CONFIG, summaryRows, rocRows, learningCurveRows, meanConfusion, perClassRows, curveRows } from "../core/index.js";
+    const params = new URLSearchParams(location.search);
+  </script>
+
+  <script id="config" type="module">
+    const config = BENCHMARK_CONFIG;
+    const { conditions, ...rest } = config;
+    const shown = { ...rest, training: conditions["app-default"], learningCurve: { ...config.learningCurve, conditions: undefined } };
+    display(html`<details><summary>Run configuration</summary><pre>${JSON.stringify(shown, null, 2)}</pre></details>`);
+  </script>
+
+  <script id="run" type="module">
+    const results = await (async () => {
+      const saved = params.get("results");
+      if (saved) {
+        const loaded = await (await fetch(`/results/${saved}`)).json();
+        if ((loaded.schema ?? 1) < 2) { display(html`<p>These results were saved by an older version of the benchmark that used 5-fold cross-validation, so this page cannot show them.</p>`); return new Promise(() => {}); }
+        return loaded;
+      }
+
+      const status = html`<pre style="min-height:3em">Ready.</pre>`;
+      const button = html`<button>Run benchmark</button>`;
+      const latest = "benchmark-2026-11-07T13-35-05-730Z.json";
+      display(html`<div>${button} <a href="?results=${latest}" style="margin-left:12px">View saved results</a>${status}</div>`);
+      await new Promise(resolve => { button.onclick = () => { button.disabled = true; resolve(); }; });
+
+      const started = performance.now();
+      const results = await runBenchmark({
+        config,
+        onProgress: (p) => { status.textContent = `${p.stage} ${p.model ?? ""} ${p.done}/${p.total}  (${((performance.now() - started) / 1000).toFixed(0)}s)`; }
+      }).catch((error) => {
+        status.textContent = `Failed: ${error.message}. Progress is saved; reload the page and press Run benchmark to resume.`;
+        throw error;
+      });
+      status.textContent = `Done in ${((performance.now() - started) / 1000).toFixed(0)}s. Saving…`;
+      const name = `benchmark-${results.env.date.replace(/[:.]/g, "-")}.json`;
+      const saved2 = await fetch(`/results/${name}`, { method: "POST", body: JSON.stringify(results) }).then(r => r.ok, () => false);
+      status.textContent = saved2 ? `Done. Saved as ${name}.` : "Done. Could not save the results file. Use the download link below.";
+      display(html`<a download="${name}" href="${URL.createObjectURL(new Blob([JSON.stringify(results)], { type: "application/json" }))}">download ${name}</a>`);
+      return results;
+    })();
+  </script>
+
+  <script id="h-quality" type="module">
+    // shown only once results exist
+    if (results) display(html`<h2>1. Classification quality</h2><p>Higher is better in every column. Recall (sensitivity) is the share of malignant moles caught, and specificity is the share of benign moles cleared. Balanced accuracy averages recall and specificity, so uneven class sizes do not inflate it.</p>`);
+  </script>
+
+  <script id="quality" type="module">
+    const fmt = (m, d = 3) => `${m.mean.toFixed(d)} ± ${m.std.toFixed(d)}`;
+    display(Inputs.table(summaryRows(results).map(r => ({
+      model: r.model,
+      accuracy: fmt(r.accuracy), "balanced acc": fmt(r.balancedAccuracy), "sensitivity (malignant recall)": fmt(r.recall),
+      specificity: fmt(r.specificity)
+    })), { select: false, layout: "auto" }));
+  </script>
+
+  <script id="confusion" type="module">
+    // test-set predictions at threshold 0.5 (head seed 0), averaged over the random splits; rows = actual, columns = predicted
+    {
+      const cond = Object.keys(results.config.conditions)[0];
+      const cells = results.config.models.map(model => {
+        const c = meanConfusion(results, model, cond);
+        if (!c) return html`<div></div>`;
+        const pct = (v, row) => `${(100 * v / row.reduce((a, b) => a + b, 0)).toFixed(0)}%`;
+        const cell = (v, row, good) => html`<td style="padding:6px 14px;text-align:right;background:${good ? "#2a9d8f33" : "#e76f5133"}"><b>${Math.round(v)}</b><br><small>${pct(v, row)} of row</small></td>`;
+        return html`<div><b>${model}</b>
+          <table style="border-collapse:collapse;margin-top:4px"><tr><td></td><th>pred benign</th><th>pred malignant</th></tr>
+            <tr><th style="text-align:right">actual benign</th>${cell(c.matrix[0][0], c.matrix[0], true)}${cell(c.matrix[0][1], c.matrix[0], false)}</tr>
+            <tr><th style="text-align:right">actual malignant</th>${cell(c.matrix[1][0], c.matrix[1], false)}${cell(c.matrix[1][1], c.matrix[1], true)}</tr>
+          </table></div>`;
+      });
+      display(html`<h3>Confusion matrix</h3><p>Rows are the true class and columns the prediction, so the diagonal cells are correct. Bottom-left cells are missed malignant moles and top-right cells are false alarms; which error matters more depends on how the tool would be used. Counts are the average over the ${results.config.split.splits} test sets (${results.splits[0].test.length} images each), rounded to whole images.</p><div style="display:flex;gap:32px;flex-wrap:wrap">${cells}</div>`);
+    }
+  </script>
+
+  <script id="per-class" type="module">
+    // each class as the positive class in turn; threshold 0.5; mean ± std across the random splits
+    const pc = (m) => `${m.mean.toFixed(3)} ± ${m.std.toFixed(3)}`;
+    const classRows = perClassRows(results);
+    if (classRows.length) {
+      display(html`<h3>Per-class precision, recall and F1</h3><p>Precision is the share of a class's predictions that are right, recall is the share of that class's images found, and F1 combines the two. Each class takes a turn as the positive class. Malignant is the screening view. Benign looks at the same predictions from the other side, where benign recall equals specificity. Macro averages the two classes equally. A large gap between the classes suggests the model leans toward one of them.</p>`);
+      display(Inputs.table(classRows.flatMap(r => ["malignant", "benign", "macro"].map(cls => ({
+        model: r.model, class: cls === "macro" ? "macro avg" : cls,
+        precision: pc(r[`${cls}.precision`]), recall: pc(r[`${cls}.recall`]), F1: pc(r[`${cls}.f1`]),
+        support: cls === "macro" ? "" : r.support[cls]
+      }))), { select: false, layout: "auto" }));
+    }
+  </script>
+
+  <script id="threshold-free" type="module">
+    const fmt = (m, d = 3) => `${m.mean.toFixed(d)} ± ${m.std.toFixed(d)}`;
+    display(html`<h3>Threshold-free and calibration</h3><p>ROC-AUC and PR-AUC summarize how well each model ranks malignant above benign across all thresholds. A ROC-AUC of 0.5 is chance, and PR-AUC should be read against the share of malignant images in the data. Sensitivity at 90% and 95% specificity shows how many malignant moles are caught if false alarms are held to 10% or 5% of benign moles. Brier score and expected calibration error (ECE) describe whether stated confidence matches how often the model is right; lower is better for both.</p>`);
+    display(Inputs.table(summaryRows(results).map(r => ({
+      model: r.model, "ROC-AUC": fmt(r.rocAuc), "PR-AUC": fmt(r.prAuc),
+      "sens @ 90% spec": fmt(r.sensAtSpec90), "sens @ 95% spec": fmt(r.sensAtSpec95), "Brier (lower better)": fmt(r.brier), "ECE (lower better)": fmt(r.ece)
+    })), { select: false, layout: "auto" }));
+  </script>
+
+  <script id="roc" type="module">
+    const cond = Object.keys(results.config.conditions)[0];
+    display(html`<p>Curves closer to the top-left corner are better. The dashed diagonal is chance.</p>`);
+    {
+      display(Plot.plot({
+        title: "ROC curve (mean over splits and seeds)", width: 420, height: 320, grid: true, x: { label: "false positive rate" }, y: { label: "true positive rate (sensitivity)" }, color: { legend: true },
+        marks: [Plot.line([[0, 0], [1, 1]], { stroke: "gray", strokeDasharray: "4,3" }), Plot.line(rocRows(results, cond), { x: "fpr", y: "tpr", stroke: "model" })]
+      }));
+    }
+  </script>
+
+  <script id="h-data" type="module">
+    // shown only once results exist
+    if (results) display(html`<h2>2. Data efficiency and training behaviour</h2><p>The learning curve plots ROC-AUC against the number of training images per class. A curve still rising at the largest size suggests more data would help; a flat curve suggests the setup has reached its limit. The two charts show loss and accuracy after every epoch: training (solid) is measured on the training images and validation (dashed) on the 15% of images held out for validation. The test images are not involved, and nothing is chosen from the validation images. If validation loss stops falling or rises while training loss keeps falling, the model is memorizing the training images from that point on.</p>`);
+  </script>
+
+  <script id="curve" type="module">
+    const rows = learningCurveRows(results);
+    if (rows.length) display(Plot.plot({
+      title: "Learning curve: ROC-AUC vs training images per class (split 1)", width: 640, height: 340, grid: true, marginBottom: 40,
+      x: { type: "log", label: "training images per class" }, y: { label: "ROC-AUC", domain: [0.4, 1] }, color: { legend: true },
+      marks: [Plot.line(rows, { x: "nPerClass", y: "rocAuc", stroke: "model" }), Plot.dot(rows, { x: "nPerClass", y: "rocAuc", stroke: "model" })]
+    }));
+  </script>
+
+  <script id="loss-curve" type="module">
+    // training (solid) and validation (dashed) values per epoch, mean over splits and seeds
+    const curves = curveRows(results);
+    const panel = (title, label, train, val, domain) => Plot.plot({
+      title, width: 420, height: 300, grid: true, marginLeft: 48, color: { legend: true },
+      x: { label: "epoch" }, y: { label, ...(domain ? { domain } : {}) },
+      marks: [
+        Plot.line(curves, { x: "epoch", y: train, stroke: "model", strokeWidth: 2 }),
+        Plot.dot(curves, { x: "epoch", y: train, stroke: "model", r: 2.5 }),
+        Plot.line(curves, { x: "epoch", y: val, stroke: "model", strokeWidth: 2, strokeDasharray: "5,4" }),
+        Plot.dot(curves, { x: "epoch", y: val, stroke: "model", fill: "white", r: 2.5 })
+      ]
+    });
+    display(html`<h3>Training curves, mean over splits and seeds</h3><div style="display:flex;gap:24px;flex-wrap:wrap">${panel("Loss: solid = training, dashed = validation", "loss", "trainLoss", "valLoss")}${panel("Accuracy: solid = training, dashed = validation", "accuracy", "trainAcc", "valAcc", [0.4, 1])}</div>`);
+  </script>
+
+  <script id="loss" type="module">
+    const rows = summaryRows(results);
+    display(html`<p>A gap between the dashed and solid lines that keeps widening suggests overfitting, as does training accuracy far above the held-out accuracy in section 1. Training loss still falling at the last epoch does not by itself mean more epochs would help; check whether validation loss is still falling too.</p>`);
+    display(Inputs.table(rows.map(r => ({ model: r.model, "loss, epoch 1": r.firstLoss.mean.toFixed(3), "loss, last epoch": r.finalLoss.mean.toFixed(3), "head train time (s)": (r.trainMs.mean / 1000).toFixed(1) })), { select: false, layout: "auto" }));
+  </script>
+
+  <script id="h-speed" type="module">
+    // shown only once results exist
+    if (results) display(html`<h2>3. Speed and size</h2><p>Latency is for one image after warm-up, measured on this machine and browser, so compare models within this run only; differences of a few milliseconds are noise. "End to end" includes image decoding and resizing, which can dominate for large photos, while "backbone" is the model alone. Download size and parameter count matter most where bandwidth or memory is limited.</p>`);
+  </script>
+
+  <script id="speed" type="module">
+    const ms = (t) => `${t.p50.toFixed(1)} / ${t.p95.toFixed(1)}`;
+    // one row per measurement, one column per model, so nothing is cut off or needs sideways scrolling
+    const measures = [
+      ["Feature map", s => results.extraction[s.model].shape.join("×")],
+      ["Parameters (in the downloaded model files)", s => s.parameters.toLocaleString()],
+      ["Download size (MB)", s => (s.downloadBytes / 1e6).toFixed(2)],
+      ["Load time (ms)", s => s.loadMs.toFixed(0)],
+      ["Backbone latency, median / 95th percentile (ms)", s => ms(s.backboneMs)],
+      ["End-to-end latency, median / 95th percentile (ms)", s => ms(s.endToEndMs)],
+      ["Images per second (end to end)", s => s.imagesPerSecond.toFixed(1)],
+      ["GPU memory after load (MB)", s => (s.gpuBytesAfterLoad / 1e6).toFixed(1)]
+    ];
+    display(Inputs.table(measures.map(([label, get]) => ({ measurement: label, ...Object.fromEntries(results.speed.map(s => [s.model, get(s)])) })), { select: false, layout: "auto" }));
+    display(html`<p>One-time cost of computing features for every image.</p>`);
+    display(Inputs.table(Object.entries(results.extraction).map(([m, e]) => ({ model: m, images: e.count, "extract time (s)": (e.extractMs / 1000).toFixed(1) })), { select: false, layout: "auto" }));
+  </script>
+
+  <script id="h-env" type="module">
+    // shown only once results exist
+    if (results) display(html`<h2>4. Data, environment and caveats</h2><p>Image counts per class, and the hardware and software these results were measured on.</p>`);
+  </script>
+
+  <script id="env" type="module">
+    display(html`<details><summary>Dataset and environment details</summary><pre>${JSON.stringify({ dataset: results.dataset.counts, env: results.env }, null, 2)}</pre></details>`);
+  </script>
+
+  <script id="caveats" type="module">
+    // shown only once results exist
+    if (results) display(html`<ul>
+      <li><strong>Possible leakage.</strong> These appear to be ISIC images, and several can come from one lesion or patient; duplicates also exist. Splits are per image, so scores may be optimistic, and the spread across splits may understate the real uncertainty. Controlling for this needs lesion or patient IDs.</li>
+      <li><strong>Not like for like.</strong> MobileNet v1 here is the 0.25-width network, while v3 Small is full width, so the comparison mixes architecture and capacity.</li>
+      <li><strong>Preprocessing.</strong> Images are center-cropped to a square and resized to 224×224, so lesions near the edge can be cropped out.</li>
+      <li><strong>Run-to-run variation.</strong> Splits and training are seeded, but results can differ slightly across hardware and drivers. Timing also depends on the hardware, browser and tab state.</li>
+    </ul>`);
+  </script>
+</notebook>
