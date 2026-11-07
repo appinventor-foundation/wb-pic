@@ -35,7 +35,7 @@ function benchmarkAssets({ datasetDir }) {
         const url = decodeURIComponent((req.url || '').split('?')[0]);
         if (url === '/env.json') {
           res.setHeader('Content-Type', 'application/json');
-          return res.end(JSON.stringify({ gitCommit: git('rev-parse HEAD'), gitDirty: !!git('status --porcelain -- ../benchmark ../src/ml'), serverNode: process.version }));
+          return res.end(JSON.stringify({ gitCommit: git('rev-parse HEAD'), gitDirty: !!git('status --porcelain --untracked-files=no -- benchmark src/ml'), serverNode: process.version }));
         }
         // /results/: GET list.json | GET <name>.json | POST <name>.json (saved into benchmark/results/)
         if (url.startsWith('/results/')) {
