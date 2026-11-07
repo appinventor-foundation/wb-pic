@@ -10,21 +10,21 @@ const groupBy = (items, keyFn) => {
   return out;
 };
 
-// Seed-average within each fold first, then mean +- std across folds (folds are the unit of replication).
-function acrossFolds(runs, pick) {
-  const perFold = [...groupBy(runs, r => r.fold).values()].map(rs => mean(rs.map(pick)));
-  return { mean: mean(perFold), std: std(perFold), n: perFold.length };
+// Seed-average within each random split first, then mean +- std across the splits (the splits are the unit of replication).
+function acrossSplits(runs, pick) {
+  const perSplit = [...groupBy(runs, r => r.split).values()].map(rs => mean(rs.map(pick)));
+  return { mean: mean(perSplit), std: std(perSplit), n: perSplit.length };
 }
 
 export function summaryRows(results) {
   const rows = [];
   for (const [key, runs] of groupBy(full(results), r => `${r.model}|${r.cond}`)) {
     const [model, cond] = key.split('|');
-    const row = { model, cond, folds: new Set(runs.map(r => r.fold)).size, seeds: new Set(runs.map(r => r.seed)).size };
-    for (const m of METRIC_KEYS) row[m] = acrossFolds(runs, r => r.metrics[m]);
-    row.trainMs = acrossFolds(runs, r => r.trainMs);
-    row.finalLoss = acrossFolds(runs, r => r.history.at(-1).loss);
-    row.firstLoss = acrossFolds(runs, r => r.history[0].loss);
+    const row = { model, cond, splits: new Set(runs.map(r => r.split)).size, seeds: new Set(runs.map(r => r.seed)).size };
+    for (const m of METRIC_KEYS) row[m] = acrossSplits(runs, r => r.metrics[m]);
+    row.trainMs = acrossSplits(runs, r => r.trainMs);
+    row.finalLoss = acrossSplits(runs, r => r.history.at(-1).loss);
+    row.firstLoss = acrossSplits(runs, r => r.history[0].loss);
     rows.push(row);
   }
   return rows;
@@ -43,7 +43,7 @@ export function learningCurveRows(results) {
   const { learningCurve } = results.config;
   const sizeOf = (r) => (r.n === 'all' ? r.nTrainPerClass : r.n);
   const used = results.runs.filter(r => r.n !== 'all'
-    || (learningCurve.folds.includes(r.fold) && r.seed < learningCurve.seeds && learningCurve.conditions.includes(r.cond)));
+    || (learningCurve.splits.includes(r.split) && r.seed < learningCurve.seeds && learningCurve.conditions.includes(r.cond)));
   const rows = [];
   for (const [key, runs] of groupBy(used, r => `${r.model}|${r.cond}|${sizeOf(r)}`)) {
     const [model, cond, n] = key.split('|');
@@ -53,51 +53,42 @@ export function learningCurveRows(results) {
   return rows.sort((a, b) => a.model.localeCompare(b.model) || a.cond.localeCompare(b.cond) || a.nPerClass - b.nPerClass);
 }
 
-// Out-of-fold P(malignant) for every sample, from one head seed: each sample is scored by the fold that held it out.
-export function outOfFoldScores(results, model, cond, seed) {
-  const N = results.dataset.labels.length;
-  const scores = new Array(N).fill(null);
-  for (const r of full(results).filter(r => r.model === model && r.cond === cond && r.seed === seed)) {
-    results.folds[r.fold].test.forEach((idx, i) => { scores[idx] = r.scores[i]; });
-  }
-  return scores.every(s => s !== null) ? scores : null;
+// Confusion matrix at threshold 0.5 on the test images, averaged over the random splits (one head seed). Rows are the actual
+// class and columns the predicted class (benign, malignant). Counts are the mean per test set, so they are not whole numbers.
+export function meanConfusion(results, model, cond, seed = results.config.headSeeds[0]) {
+  const runs = full(results).filter(r => r.model === model && r.cond === cond && r.seed === seed && r.scores);
+  if (!runs.length) return null;
+  const labels = results.dataset.labels;
+  const parts = runs.map(r => confusion(r.scores, results.splits[r.split].test.map(i => labels[i])));
+  const avg = (key) => mean(parts.map(p => p[key]));
+  const tn = avg('tn'), fp = avg('fp'), fn = avg('fn'), tp = avg('tp');
+  return { tn, fp, fn, tp, matrix: [[tn, fp], [fn, tp]], classes: ['benign', 'malignant'], testSets: runs.length };
 }
 
-// Pooled out-of-fold confusion matrix at threshold 0.5 for one head seed: every image is counted once, in the fold
-// that held it out. Rows are the actual class, columns the predicted class (benign, malignant).
-export function pooledConfusion(results, model, cond, seed = results.config.headSeeds[0]) {
-  const scores = outOfFoldScores(results, model, cond, seed);
-  if (!scores) return null;
-  const { tp, fp, tn, fn } = confusion(scores, results.dataset.labels);
-  return { tn, fp, fn, tp, matrix: [[tn, fp], [fn, tp]], classes: ['benign', 'malignant'] };
-}
-
-// Mean training loss/accuracy per epoch, across the folds and seeds of each model and condition (full-size runs only).
-// These are training-set values: the app-default head is not trained with a validation set, so there is no val loss.
-export function lossCurveRows(results) {
+// Mean training and validation loss/accuracy per epoch for each model, across the random splits and seeds (full-size runs).
+// Every value is measured after the epoch with the same weights: training on the train images, validation on the held-out
+// validation images. The test images are not involved.
+export function curveRows(results) {
   const rows = [];
-  for (const [key, runs] of groupBy(full(results), r => `${r.model}|${r.cond}`)) {
-    const [model, cond] = key.split('|');
+  for (const [model, runs] of groupBy(full(results).filter(r => r.history[0]?.valLoss != null), r => r.model)) {
     const epochs = Math.min(...runs.map(r => r.history.length));
     for (let e = 0; e < epochs; e++) {
-      const loss = runs.map(r => r.history[e].loss), acc = runs.map(r => r.history[e].acc);
-      rows.push({ model, cond, epoch: e + 1, loss: mean(loss), lossStd: std(loss), acc: mean(acc), runs: runs.length });
+      const at = (key) => mean(runs.map(r => r.history[e][key]));
+      rows.push({ model, epoch: e + 1, trainLoss: at('trainLoss'), valLoss: at('valLoss'), trainAcc: at('trainAcc'), valAcc: at('valAcc'), runs: runs.length });
     }
   }
   return rows;
 }
 
-// Per-class precision/recall/F1 (each class as the positive class) and macro averages. Computed from the stored
-// out-of-fold scores of each full-size run, so runs saved before this metric existed still work.
-// Mean +- std across folds, seeds averaged within a fold.
+// Per-class precision/recall/F1 (each class as the positive class) and macro averages, computed from each full-size run's
+// stored test scores. Mean +- std across the random splits, seeds averaged within a split. `support` is the number of
+// benign and malignant images in one test set.
 export function perClassRows(results) {
   const labels = results.dataset.labels;
+  const testLabels = (r) => results.splits[r.split].test.map(i => labels[i]);
   const cache = new Map();
   const metricsOf = (r) => {
-    if (!cache.has(r)) {
-      const test = results.folds[r.fold].test;
-      cache.set(r, perClassMetrics(r.scores, test.map(i => labels[i])));
-    }
+    if (!cache.has(r)) cache.set(r, perClassMetrics(r.scores, testLabels(r)));
     return cache.get(r);
   };
   const rows = [];
@@ -105,8 +96,9 @@ export function perClassRows(results) {
     const [model, cond] = key.split('|');
     const row = { model, cond };
     for (const cls of ['benign', 'malignant', 'macro'])
-      for (const m of ['precision', 'recall', 'f1']) row[`${cls}.${m}`] = acrossFolds(runs, r => metricsOf(r)[cls][m]);
-    row.support = metricsOf(runs[0]) && { benign: labels.filter(v => v === 0).length, malignant: labels.filter(v => v === 1).length };
+      for (const m of ['precision', 'recall', 'f1']) row[`${cls}.${m}`] = acrossSplits(runs, r => metricsOf(r)[cls][m]);
+    const y = testLabels(runs[0]);
+    row.support = { benign: y.filter(v => v === 0).length, malignant: y.filter(v => v === 1).length };
     rows.push(row);
   }
   return rows;

@@ -143,3 +143,10 @@ export function allMetrics(scores, y) {
     ece: expectedCalibrationError(scores, y)
   };
 }
+
+// Binary cross-entropy of P(positive) scores against 0/1 labels. Probabilities are clipped the way the training loss clips them.
+export function logLoss(scores, y, eps = 1e-7) {
+  let total = 0;
+  for (let i = 0; i < y.length; i++) total -= Math.log(Math.min(1 - eps, Math.max(eps, y[i] ? scores[i] : 1 - scores[i])));
+  return total / y.length;
+}

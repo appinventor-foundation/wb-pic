@@ -71,3 +71,10 @@ test('per-class metrics: each class as positive, macro average', () => {
   // benign recall is the plain specificity
   close(r.benign.recall, base.specificity);
 });
+
+test('log loss: chance is ln 2, confident and right is near 0, confident and wrong is large', () => {
+  close(m.logLoss([0.5, 0.5], [1, 0]), Math.LN2);
+  assert.ok(m.logLoss([0.999, 0.001], [1, 0]) < 0.01);
+  assert.ok(m.logLoss([0.001, 0.999], [1, 0]) > 5);
+  assert.ok(Number.isFinite(m.logLoss([0, 1], [1, 0]))); // clipped, so even a certain mistake is finite
+});

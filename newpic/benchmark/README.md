@@ -14,8 +14,8 @@ DATASET_DIR=/path/to/flat_benign_vs_malignant npm run benchmark
 ```
 
 Open <http://localhost:5173/>, keep the tab in the foreground, and press *Run benchmark*. The run uses all
-images with 5-fold cross-validation and 3 head seeds, and includes the learning curve: 54 head-training runs on top
-of one feature extraction per model.
+images, split 70/15/15 into train, validation and test sets on 5 random splits with 3 head seeds, and includes the
+learning curve: 54 head-training runs on top of one feature extraction per model.
 
 To render a saved run without re-running, open `http://localhost:5173/?results=<file>.json` (files in
 `benchmark/results/`).
@@ -30,12 +30,13 @@ Tests for the pure-JS core (splits, metrics, aggregation): `npm run benchmark:te
 
 ## What is measured
 
-- **Quality** (5-fold stratified CV, folds shared by both models): accuracy, balanced accuracy, sensitivity
-  (malignant recall), specificity, precision, F1, ROC-AUC, PR-AUC, sensitivity at 90/95% specificity, Brier, ECE.
-  Mean ± std across folds; head seeds are averaged within a fold.
+- **Quality** (stratified 70/15/15 train/validation/test splits, repeated on 5 random splits shared by both models):
+  accuracy, balanced accuracy, sensitivity (malignant recall), specificity, precision, F1, ROC-AUC, PR-AUC, sensitivity
+  at 90/95% specificity, Brier, ECE, all on the test images. Mean ± std across the splits; head seeds are averaged within a split.
 - **Per class:** precision, recall and F1 with benign and with malignant as the positive class, plus macro averages
-  (`perClassRows`, computed from the stored out-of-fold scores), and pooled confusion matrices.
-- **Training curves:** training loss and accuracy per epoch (no validation set in the app's training).
+  (`perClassRows`, computed from the stored test scores), and confusion matrices averaged over the test sets.
+- **Training curves:** training and validation loss and accuracy after every epoch. The validation images are only
+  monitored: they are never trained on, and nothing is chosen from them.
 - **Training:** the app's own settings for both models (20 epochs, Adam at learning rate 1e-4, batch size 40% of the
   training set). There are no other training variants.
 - **Data efficiency:** learning curve over training images per class.
@@ -50,7 +51,7 @@ core/dataset.js   manifest -> samples; class order fixed, malignant = positive (
 core/extract.js   streams images through the frozen backbone one at a time (DataProcessor.convertImage +
                   the same truncation as ImageClassifier); features kept on the CPU, cached in IndexedDB
 core/head.js      the app's conv head via its ModelBuilder, seeded init and epoch order
-core/splits.js    seeded stratified k-fold and nested per-class subsampling
+core/splits.js    seeded stratified train/validation/test splits and nested per-class subsampling
 core/metrics.js   metrics, ROC, calibration (all pure)
 core/aggregate.js results JSON -> report tables (pure)
 core/speed.js     latency / size benchmark
@@ -59,7 +60,7 @@ notebooks/index.html   run + report
 vite.js, serve.js   dev server (adds /dataset, /models, /results, /env.json)
 ```
 
-Extraction is the expensive step and the backbone is frozen, so features are extracted once per model and every fold,
+Extraction is the expensive step and the backbone is frozen, so features are extracted once per model and every split,
 seed and learning-curve size trains only the small head. Finished runs and partial extraction are
 checkpointed in IndexedDB, so an interrupted run resumes when you reload the page and press *Run benchmark*. Changing the code that
 produces a run record means bumping `RUN_VERSION` in `core/bench.js` (and `PREPROCESSING_VERSION` in

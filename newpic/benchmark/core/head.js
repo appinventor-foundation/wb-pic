@@ -2,6 +2,7 @@ import { tf } from './tf.js';
 import { DEFAULT_CONFIG } from '../../src/ml/config/defaults.js';
 import { ModelBuilder } from '../../src/ml/ModelBuilder.js';
 import { shuffled } from './rng.js';
+import { logLoss } from './metrics.js';
 
 // The one training setup: exactly what the app trains (DEFAULT_CONFIG).
 export const APP_DEFAULT = {
@@ -24,7 +25,10 @@ function buildConvHead(featShape, cond, seed) {
 
 // features: tf.Tensor4D [N,H,W,C] (kept by the caller), y: 0/1 array, trainIdx/testIdx: row indices.
 // Returns P(malignant) for each test row plus training stats. All tensors created here are disposed.
-export async function trainAndPredict({ features, y, trainIdx, testIdx, cond, seed }) {
+// With valIdx (rows the model never trains on), each epoch's history entry also holds trainLoss/trainAcc and valLoss/valAcc,
+// measured after the epoch with the same weights. They are only monitored: nothing is chosen from them. (The `loss`/`acc`
+// that fit reports are running averages while the weights are still changing.)
+export async function trainAndPredict({ features, y, trainIdx, testIdx, valIdx = null, cond, seed }) {
   const before = tf.memory().numTensors;
   const t0 = performance.now();
   const [, H, W, C] = features.shape;
@@ -34,12 +38,19 @@ export async function trainAndPredict({ features, y, trainIdx, testIdx, cond, se
   model = buildConvHead([H, W, C], cond, seed);
   optimizer = model.optimizer;
   const batchSize = Math.max(1, Math.floor(trainIdx.length * cond.batchSizeFraction));
+  const yTrain = trainIdx.map(i => y[i]), yVal = valIdx?.map(i => y[i]);
+  const accuracy = (scores, labels) => scores.reduce((n, s, i) => n + ((s >= 0.5 ? 1 : 0) === labels[i] ? 1 : 0), 0) / labels.length;
   for (let e = 0; e < cond.epochs; e++) {
     // our own seeded order each epoch (fit's shuffle uses Math.random)
     const order = shuffled(trainIdx, seed * 100003 + e);
     const xs = gatherRows(features, order), ys = tf.tidy(() => tf.oneHot(tf.tensor1d(order.map(i => y[i]), 'int32'), 2));
     const h = await model.fit(xs, ys, { epochs: 1, batchSize, shuffle: false, verbose: 0 });
-    history.push({ loss: h.history.loss[0], acc: h.history.acc?.[0] ?? h.history.accuracy?.[0] });
+    const entry = { loss: h.history.loss[0], acc: h.history.acc?.[0] ?? h.history.accuracy?.[0] };
+    if (valIdx) {
+      const pTrain = await predictInBatches(model, features, trainIdx), pVal = await predictInBatches(model, features, valIdx);
+      Object.assign(entry, { trainLoss: logLoss(pTrain, yTrain), trainAcc: accuracy(pTrain, yTrain), valLoss: logLoss(pVal, yVal), valAcc: accuracy(pVal, yVal) });
+    }
+    history.push(entry);
     xs.dispose(); ys.dispose();
   }
   const trainMs = performance.now() - t0;
