@@ -35,7 +35,7 @@
 
       const status = html`<pre style="min-height:3em">Ready.</pre>`;
       const button = html`<button>Run benchmark</button>`;
-      const latest = "benchmark-2026-11-07T12-39-35-599Z.json";
+      const latest = "benchmark-2026-11-07T13-35-05-730Z.json";
       display(html`<div>${button} <a href="?results=${latest}" style="margin-left:12px">View saved results</a>${status}</div>`);
       await new Promise(resolve => { button.onclick = () => { button.disabled = true; resolve(); }; });
 
